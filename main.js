@@ -11,7 +11,10 @@ var updated = {};
 
 chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
   if (nick != botName) {
-    //nick = nick + "#" + trip;
+    if (typeof trip != 'undefined')
+      nick = nick + "." + trip;
+    if (typeof userStats[nick] == 'undefined')
+      userStats[nick] = {"banCount": 0, "warningCount": 0};
     if (typeof users[nick] != 'undefined')
       users[nick].push([time, text]);
     else {
@@ -47,15 +50,12 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
     console.log('saving');
     fs.writeFile("./userStats.json", JSON.stringify(userStats), function(){});
   }
-});
-
-chat.on("onlineSet", function(session, names){
-  for (var i = 0; i < names.length; i++)
-    createUser(names[i]);
-})
-
-chat.on("onlineAdd", function(session, nick){
-  createUser(nick);
+  if (nick == "*") {
+    if (text.indexOf("Banned") != -1) {
+      var bannedUser = text.split(" ")[1];
+      userStats[bannedUser].banCount++;
+    }
+  }
 });
 
 chat.on("joining", function(){
@@ -76,11 +76,6 @@ chat.on("ratelimit", function() {
 //   console.log('quit');
 //   fs.writeFile("./userStats.json", JSON.stringify(userStats), function(){});
 // });
-
-function createUser(nick){
-  if (typeof userStats[nick] == 'undefined') //Create new object for this user in the JSON file
-    userStats[nick] = {"banCount": 0, "warningCount": 0};
-};
 
 function reEvaluate(nick) {
   var maxMessages = 200; //Max amount of messages every 5 min
@@ -109,9 +104,4 @@ function reEvaluate(nick) {
       updatedUsers(nick);
     }
   }
-};
-
-function updatedUsers(nick){
-  updated[nick] = userStats[nick];
-  setTimeout(function(){console.log('removing'); delete updated[nick]}, 5 * 60 * 60 * 1000);
 };
