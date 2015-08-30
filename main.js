@@ -54,6 +54,7 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
     if (text.indexOf("Banned") != -1) {
       var bannedUser = text.split(" ")[1];
       userStats[bannedUser].banCount++;
+      updatedUsers(nick);
     }
   }
 });
