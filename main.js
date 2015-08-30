@@ -25,11 +25,16 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
     }, 5 * 60 * 1000); //Substract a message counter after 5 minutes
   }
   if (text == "stats") {
-    var message = "Updated users over the last 5 hours";
+    if (updated.length != 0) {
+    var message = "Updated users over the last 5 hours\n";
     for (name in updated){
       message += name + " ~ banCount: " + userStats[name].banCount + " warningCount: " + userStats[name].warningCount + "\n";
     }
     channel.sendMessage(message);
+    }
+    else {
+      channel.sendMessage("No recent changes.");
+    }
   }
   else if (text == "allStats") {
     var message = "";
