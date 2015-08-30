@@ -30,6 +30,10 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
     }
     channel.sendMessage(message);
   }
+  if (text == "save") {
+    console.log('saving');
+    fs.writeFile("./userStats.json", JSON.stringify(userStats), function(){});
+  }
 });
 
 chat.on("onlineSet", function(session, names){
@@ -44,6 +48,7 @@ chat.on("onlineAdd", function(session, nick){
 chat.on("joining", function(){
   console.log('All systems online');
   setInterval(function(){fs.writeFile("./userStats.json", JSON.stringify(userStats), function(){});}, 30 * 60 * 1000);
+  setInterval(function(){channel.ping();}, 3 * 60 * 1000);
 });
 
 chat.on("nicknameTaken", function(){
