@@ -7,6 +7,7 @@ var channel = chat.join(channelName, botName);
 var userStats = require("./userStats.json");
 
 var users = {};
+var updated = {};
 
 chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
   if (nick != botName) {
@@ -24,13 +25,20 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
     }, 5 * 60 * 1000); //Substract a message counter after 5 minutes
   }
   if (text == "stats") {
+    var message = "Updated users over the last 5 hours";
+    for (name in updated){
+      message += name + " ~ banCount: " + userStats[name].banCount + " warningCount: " + userStats[name].warningCount + "\n";
+    }
+    channel.sendMessage(message);
+  }
+  else if (text == "allStats") {
     var message = "";
     for (name in userStats){
       message += name + " ~ banCount: " + userStats[name].banCount + " warningCount: " + userStats[name].warningCount + "\n";
     }
     channel.sendMessage(message);
   }
-  if (text == "save") {
+  else if (text == "save") {
     console.log('saving');
     fs.writeFile("./userStats.json", JSON.stringify(userStats), function(){});
   }
@@ -78,12 +86,14 @@ function reEvaluate(nick) {
     userStats[nick].warningCount ++;
     console.log('User: ' + nick + ' has been deteced for flooding the chat.');
     users[nick] = [];
+    updatedUsers(nick);
   } else if (users[nick].length - 1 > 2) { //Checking the time difference between the last and third last message
     if (users[nick][users[nick].length - 1][0] - users[nick][users[nick].length - 3][0] < maxAvgtime) {
       channel.sendMessage("@" + nick + " warning, you are typing too fast!");
       userStats[nick].warningCount ++;
       console.log('User: ' + nick + ' has been deteced for fast typing in the chat.');
       users[nick] = [];
+      updatedUsers(nick);
     }
   } else if (users[nick].length > 2) { //Checking the repetiviness of messages
     if (users[nick][users[nick].length - 1][1] == users[nick][users[nick].length - 3][1]) {
@@ -91,6 +101,12 @@ function reEvaluate(nick) {
       userStats[nick].warningCount ++;
       console.log('User: ' + nick + ' has been deteced for spamming.');
       users[nick] = [];
+      updatedUsers(nick);
     }
   }
+};
+
+function updatedUsers(nick){
+  updated[nick] = userStats[nick];
+  setTimeout(function(){console.log('removing'); delete updated[nick]}, 5 * 60 * 60 * 1000);
 };
