@@ -37,16 +37,16 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
       if (typeof text.split(' ')[1] != 'undefined' && config.mods.indexOf(trip) != -1) {
         var matches = getName(text.split(' ')[1])
         var message = "@" + nick + " \n";
-        for (var user of matches) {
-          console.log(user);
-          message += user + " ~ banCount: " + userStats[user].banCount + " warningCount: " + userStats[user].warningCount + "\n";
+        if (matches.length > 1) {
+          for (var user of matches)
+            message += user + " ~ banCount: " + userStats[user].banCount + " warningCount: " + userStats[user].warningCount + "\n";
+          channel.sendMessage(message);
         }
-        channel.sendMessage(message);
       } else
         channel.sendMessage("@" + nick + " ~ banCount: " + userStats[nick].banCount + " warningCount: " + userStats[nick].warningCount + "\n");
   } else if (text == ".allStats" && config.mods.indexOf(trip) != -1) {
     var message = "";
-    for (name in userStats)
+    for (var name of userStats)
       if (!(userStats[name].banCount == 0 || userStats[name].warningCount == 0))
         message += name + " ~ banCount: " + userStats[name].banCount + " warningCount: " + userStats[name].warningCount + "\n";
     channel.sendMessage(message);
