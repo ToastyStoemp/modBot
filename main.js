@@ -1,18 +1,16 @@
 var fs = require('fs');
 var HackChat = require("./hackchat.js");
 var chat = new HackChat();
-var channelName = "botDev";
-var botName = "modBot";
-var channel = chat.join(channelName, botName);
+var config = require("./config.json");
+var channel = chat.join(config.botChannel, config.botName, config.botPass);
 var userStats = require("./userStats.json");
-var mods = ["BD74uK"];
 
 var users = {};
 
 chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
   var oldnick = nick;
-  if (nick != botName) {
-    if (trip != null)
+  if (nick != config.botName) {
+    if (trip !== 'undefined')
       nick = nick + "#" + trip;
     if (typeof userStats[nick] == 'undefined')
       userStats[nick] = {
@@ -30,21 +28,32 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
     setTimeout(function() {
       users[nick].shift();
     }, 5 * 60 * 1000); //Substract a message counter after 5 minutes
+    setTimeout(function() {
+      console.log('saving', Date.now());
+      fs.writeFile("./userStats.json", JSON.stringify(userStats), function() {});
+    }, 5 * 60 * 1000);
   }
-  if (text == ".stats") {
-      channel.sendMessage("@" + nick + " ~ banCount: " + userStats[nick].banCount + " warningCount: " + userStats[nick].warningCount + "\n");
-  } else if (text == ".allStats" && mods.indexOf(trip) != -1) {
+  if (text.split(" ")[0] == ".stats") {
+      if (config.mods.indexOf(trip) != -1) {
+        var matches = getName(nick)
+        var message = "";
+        for (var user in matches)
+          message += "@" + nick + " ~ banCount: " + userStats[user].banCount + " warningCount: " + userStats[user].warningCount + "\n"
+          channel.sendMessage(message);
+      } else
+        channel.sendMessage("@" + nick + " ~ banCount: " + userStats[nick].banCount + " warningCount: " + userStats[nick].warningCount + "\n");
+  } else if (text == ".allStats" && config.mods.indexOf(trip) != -1) {
     var message = "";
-    for (name in userStats) {
-      message += name + " ~ banCount: " + userStats[name].banCount + " warningCount: " + userStats[name].warningCount + "\n";
-    }
+    for (name in userStats)
+      if (!(userStats[name].banCount == 0 || userStats[name].warningCount == 0))
+        message += name + " ~ banCount: " + userStats[name].banCount + " warningCount: " + userStats[name].warningCount + "\n";
     channel.sendMessage(message);
-  } else if (text == ".save" && mods.indexOf(trip) != -1) {
-    console.log('saving');
-    fs.writeFile("./userStats.json", JSON.stringify(userStats), function() {});
-  } else if (text.split(" ")[0] == ".ban" && mods.indexOf(trip) != -1) {
-    console.log(channel.sendRaw({cmd:"ban", nick:text.split(" ")[1]}));
-  }
+  } else if (text == ".save" && config.mods.indexOf(trip) != -1) {
+      fs.writeFile("./userStats.json", JSON.stringify(userStats), function() {});
+  } else if (text.split(" ")[0] == ".ban" && config.mods.indexOf(trip) != -1) {
+      channel.sendRaw({cmd:"ban", nick:text.split(" ")[1]});
+  } else if (text == ".source")
+      channel.sendMessage(config.botName + " is written by ToastyStoemp, the source code  can be found here: https://github.com/ToastyStoemp/modBot ");
 
   if (nick == "*") {
     if (text.indexOf("Banned") != -1) {
@@ -75,25 +84,29 @@ chat.on("ratelimit", function() {
 function reEvaluate(nick) {
   var maxMessages = 200; //Max amount of messages every 5 min
   var maxAvgtime = 1000; //Max difference that just baerly triggers the warning
-  var maxSimilarity = 0.7; //Max similarity between the first and third message
-console.log(users[nick].length);
+  var maxSimilarityMultiLine = 0.75; //Max similarity between the first and third message
+  var maxSimilaritySingleLine = 0.70; //Max similarity between the words in the text
 
 if (users[nick].length > 2) { //Checking the repetiviness of messages
   var firstMessage = users[nick][users[nick].length - 1][1];
   var thirdMessage = users[nick][users[nick].length - 3][1];
-  //console.log(similar_text(firstMessage, thirdMessage)/(String(firstMessage + thirdMessage).length/2));
-  if ((similar_text(firstMessage, thirdMessage)/(String(firstMessage + thirdMessage).length/2)) >= maxSimilarity) {
-    channel.sendMessage("@" + nick + " warning: " + userStats[nick].warningCount + ", you are spamming!");
+  if (similar_text(firstMessage, thirdMessage) >= maxSimilarityMultiLine) {
     userStats[nick].warningCount++;
+    channel.sendMessage("@" + nick + " warning: " + userStats[nick].warningCount + ", you are spamming!");
     console.log('User: ' + nick + ' has been deteced for spamming.');
     users[nick] = [];
   }
-} else if (users[nick].length - 1 > maxMessages) { //Checking the count of the last messages over the last 5 min
-    channel.sendMessage("@" + nick + " warning: " + userStats[nick].warningCount + ", you are typing too much ~ possible spam!");
+} else if (similar_inlineText(users[nick][users[nick].length - 1][1], maxSimilaritySingleLine)) {
     userStats[nick].warningCount++;
+    channel.sendMessage("@" + nick + " warning: " + userStats[nick].warningCount + ", you are spamming!");
+    console.log('User: ' + nick + ' has been deteced for spamming');
+    users[nick] = [];
+} else if (users[nick].length - 1 > maxMessages) { //Checking the count of the last messages over the last 5 min
+    userStats[nick].warningCount++;
+    channel.sendMessage("@" + nick + " warning: " + userStats[nick].warningCount + ", you are typing too much ~ possible spam!");
     console.log('User: ' + nick + ' has been deteced for flooding the chat.');
     users[nick] = [];
-  } else if (users[nick].length - 1 > 2) { //Checking the time difference between the last and third last message
+} else if (users[nick].length - 1 > 2) { //Checking the time difference between the last and third last message
     if (users[nick][users[nick].length - 1][0] - users[nick][users[nick].length - 3][0] < maxAvgtime) {
       userStats[nick].warningCount++;
       channel.sendMessage("@" + nick + " warning: " + userStats[nick].warningCount + ", you are typing too fast!");
@@ -103,56 +116,59 @@ if (users[nick].length > 2) { //Checking the repetiviness of messages
   }
 };
 
+function getName(nick) {
+   var matches = [];
+   for(var user in userStats){
+      matches.push(user);
+   }
+   return matches;
+}
 
-function similar_text(first, second, percent) {
-  //  discuss at: http://phpjs.org/functions/similar_text/
-  // original by: Rafał Kukawski (http://blog.kukawski.pl)
-  // bugfixed by: Chris McMacken
-  // bugfixed by: Jarkko Rantavuori original by findings in stackoverflow (http://stackoverflow.com/questions/14136349/how-does-similar-text-work)
-  // improved by: Markus Padourek (taken from http://www.kevinhq.com/2012/06/php-similartext-function-in-javascript_16.html)
-  if (first === null || second === null || typeof first === 'undefined' || typeof second === 'undefined')
-    return 0;
+function similar_text(first, second) {
+  if (first == second)
+    return 1;
 
-  first += '';
-  second += '';
-
-  var pos1 = 0,
-    pos2 = 0,
-    max = 0,
-    firstLength = first.length,
-    secondLength = second.length,
-    p, q, l, sum;
-
-  max = 0;
-
-  for (p = 0; p < firstLength; p++) {
-    for (q = 0; q < secondLength; q++) {
-      for (l = 0;
-        (p + l < firstLength) && (q + l < secondLength) && (first.charAt(p + l) === second.charAt(q + l)); l++)
-      ;
-      if (l > max) {
-        max = l;
-        pos1 = p;
-        pos2 = q;
-      }
-    }
+  firstArr = first.split(' ');
+  for (word in firstArr){
+    if (firstArr[word].indexOf('@') != -1)
+      firstArr.splice(firstArr[word], 1);
+    else
+      firstArr[word] = firstArr[word].split('').sort().join('');
   }
+  firstArr = firstArr.sort();
 
-  sum = max;
-
-  if (sum) {
-    if (pos1 && pos2) {
-      sum += similar_text(first.substr(0, pos1), second.substr(0, pos2));
-    }
-
-    if ((pos1 + max < firstLength) && (pos2 + max < secondLength)) {
-      sum += similar_text(first.substr(pos1 + max, firstLength - pos1 - max), second.substr(pos2 + max, secondLength - pos2 - max));
-    }
+  secondArr = second.split(' ');
+  for (word in secondArr){
+    if (secondArr[word].indexOf('@') != -1)
+      secondArr.splice(secondArr[word], 1);
+    else
+      secondArr[word] = secondArr[word].split('').sort().join('');
   }
+  secondArr = secondArr.sort()
 
-  if (!percent) {
-    return sum;
-  } else {
-    return (sum * 200) / (firstLength + secondLength);
+  var similarityCounter = 0;
+  for (word in first)
+    if (first[word] == second[word])
+      similarityCounter++;
+
+  return similarityCounter/((first.length + second.length)/2.0);
+}
+
+function similar_inlineText(text, maxSimilarity) {
+  var checkedWords = [];
+  var textArr = text.split(' ');
+  if (textArr.length < 7)
+    return false;
+  for (var i = 0; i < textArr.length - 1; i++) {
+    var wordCount = 1;
+    if (checkedWords.indexOf(textArr[i]) == -1) {
+      for (var k = i + 1; k < textArr.length; k++)
+        if (textArr[i] == textArr[k])
+          wordCount++;
+      if (wordCount / textArr.length >= maxSimilarity )
+        return true;
+    }
+    checkedWords.push(textArr[i]);
   }
+  return false;
 }

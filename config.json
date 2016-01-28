@@ -1,0 +1,6 @@
+{
+  "botName": "modBot",
+  "botPass": "passHere",
+  "botChannel": "channelHere",
+  "mods": ["mod trips here"]
+}

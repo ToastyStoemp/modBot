@@ -157,9 +157,6 @@ var HackChat = (function (_super) {
         session.on("onlineRemove", function (nick, time) {
             this.emit("onlineRemove", session, nick, time);
         }.bind(this));
-        session.on("error", function (err) {
-            this.emit("error", session, err);
-        }.bind(this));
         this.sessions.push(session);
         return session;
     };
