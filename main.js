@@ -46,8 +46,8 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
         channel.sendMessage("@" + nick + " ~ banCount: " + userStats[nick].banCount + " warningCount: " + userStats[nick].warningCount + "\n");
   } else if (text == ".allStats" && config.mods.indexOf(trip) != -1) {
     var message = "";
-    for (var name of userStats)
-      if (!(userStats[name].banCount == 0 || userStats[name].warningCount == 0))
+    for (var name in userStats)
+      if (userStats[name].banCount != 0 || userStats[name].warningCount != 0)
         message += name + " ~ banCount: " + userStats[name].banCount + " warningCount: " + userStats[name].warningCount + "\n";
     channel.sendMessage(message);
   } else if (text == ".save" && config.mods.indexOf(trip) != -1) {
@@ -89,15 +89,14 @@ function reEvaluate(nick) {
   var maxSimilarityMultiLine = 0.75; //Max similarity between the first and third message
   var maxSimilaritySingleLine = 0.70; //Max similarity between the words in the text
 
-if (users[nick].length > 2) { //Checking the repetiviness of messages
   var firstMessage = users[nick][users[nick].length - 1][1];
   var thirdMessage = users[nick][users[nick].length - 3][1];
-  if (similar_text(firstMessage, thirdMessage) >= maxSimilarityMultiLine) {
+
+if (users[nick].length > 2 && similar_text(firstMessage, thirdMessage) >= maxSimilarityMultiLine) { //Checking the repetiviness of messages
     userStats[nick].warningCount++;
     channel.sendMessage("@" + nick + " warning: " + userStats[nick].warningCount + ", you are spamming!");
     console.log('User: ' + nick + ' has been deteced for spamming.');
     users[nick] = [];
-  }
 } else if (similar_inlineText(users[nick][users[nick].length - 1][1], maxSimilaritySingleLine)) {
     userStats[nick].warningCount++;
     channel.sendMessage("@" + nick + " warning: " + userStats[nick].warningCount + ", you are spamming!");
