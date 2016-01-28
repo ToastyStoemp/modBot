@@ -28,10 +28,6 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
     setTimeout(function() {
       users[nick].shift();
     }, 5 * 60 * 1000); //Substract a message counter after 5 minutes
-    setTimeout(function() {
-      console.log('saving', Date.now());
-      fs.writeFile("./userStats.json", JSON.stringify(userStats), function() {});
-    }, 5 * 60 * 1000);
   }
   if (text.split(" ")[0] == ".stats") {
       if (typeof text.split(' ')[1] != 'undefined' && config.mods.indexOf(trip) != -1) {
