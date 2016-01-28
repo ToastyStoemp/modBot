@@ -69,7 +69,7 @@ chat.on("joining", function() {
   console.log('All systems online');
   setInterval(function() {
     fs.writeFile("./userStats.json", JSON.stringify(userStats), function() {});
-  }, 30 * 60 * 1000);
+  },  5 * 60 * 60 * 1000);
   setInterval(function() {
     channel.ping();
   }, 3 * 60 * 1000);
@@ -97,22 +97,26 @@ if (users[nick].length > 2 && similar_text(firstMessage, thirdMessage) >= maxSim
     channel.sendMessage("@" + nick + " warning: " + userStats[nick].warningCount + ", you are spamming!");
     console.log('User: ' + nick + ' has been deteced for spamming.');
     users[nick] = [];
+    setTimeout(function() {userStats[nick].warningCount--;}, 60 * 60 * 60 * 1000);
 } else if (similar_inlineText(users[nick][users[nick].length - 1][1], maxSimilaritySingleLine)) {
     userStats[nick].warningCount++;
     channel.sendMessage("@" + nick + " warning: " + userStats[nick].warningCount + ", you are spamming!");
     console.log('User: ' + nick + ' has been deteced for spamming');
     users[nick] = [];
+    setTimeout(function() {userStats[nick].warningCount--;}, 60 * 60 * 60 * 1000);
 } else if (users[nick].length - 1 > maxMessages) { //Checking the count of the last messages over the last 5 min
     userStats[nick].warningCount++;
     channel.sendMessage("@" + nick + " warning: " + userStats[nick].warningCount + ", you are typing too much ~ possible spam!");
     console.log('User: ' + nick + ' has been deteced for flooding the chat.');
     users[nick] = [];
+    setTimeout(function() {userStats[nick].warningCount--;}, 60 * 60 * 60 * 1000);
 } else if (users[nick].length - 1 > 2) { //Checking the time difference between the last and third last message
     if (users[nick][users[nick].length - 1][0] - users[nick][users[nick].length - 3][0] < maxAvgtime) {
       userStats[nick].warningCount++;
       channel.sendMessage("@" + nick + " warning: " + userStats[nick].warningCount + ", you are typing too fast!");
       console.log('User: ' + nick + ' has been deteced for fast typing in the chat.');
       users[nick] = [];
+      setTimeout(function() {userStats[nick].warningCount--;}, 60 * 60 * 60 * 1000);
     }
   }
 };
