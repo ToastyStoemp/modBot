@@ -34,12 +34,13 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
     }, 5 * 60 * 1000);
   }
   if (text.split(" ")[0] == ".stats") {
-      if (config.mods.indexOf(trip) != -1) {
-        var matches = getName(nick)
-        var message = "";
-        console.log(matches)
-        for (var user of matches)
-          message += "@" + nick + " ~ banCount: " + userStats[user].banCount + " warningCount: " + userStats[user].warningCount + "\n";
+      if (typeof text.split(' ')[1] != 'undefined' && config.mods.indexOf(trip) != -1) {
+        var matches = getName(text.split(' ')[1])
+        var message = "@" + nick + " \n";
+        for (var user of matches) {
+          console.log(user);
+          message += user + " ~ banCount: " + userStats[user].banCount + " warningCount: " + userStats[user].warningCount + "\n";
+        }
         channel.sendMessage(message);
       } else
         channel.sendMessage("@" + nick + " ~ banCount: " + userStats[nick].banCount + " warningCount: " + userStats[nick].warningCount + "\n");
@@ -120,7 +121,8 @@ if (users[nick].length > 2) { //Checking the repetiviness of messages
 function getName(nick) {
    var matches = [];
    for(var user in userStats){
-      matches.push(user);
+      if (user.indexOf(nick) != -1)
+        matches.push(user);
    }
    return matches;
 }
