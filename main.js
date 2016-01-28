@@ -37,9 +37,10 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
       if (config.mods.indexOf(trip) != -1) {
         var matches = getName(nick)
         var message = "";
-        for (var user in matches)
-          message += "@" + nick + " ~ banCount: " + userStats[user].banCount + " warningCount: " + userStats[user].warningCount + "\n"
-          channel.sendMessage(message);
+        console.log(matches)
+        for (var user of matches)
+          message += "@" + nick + " ~ banCount: " + userStats[user].banCount + " warningCount: " + userStats[user].warningCount + "\n";
+        channel.sendMessage(message);
       } else
         channel.sendMessage("@" + nick + " ~ banCount: " + userStats[nick].banCount + " warningCount: " + userStats[nick].warningCount + "\n");
   } else if (text == ".allStats" && config.mods.indexOf(trip) != -1) {
