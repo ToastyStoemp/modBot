@@ -18,7 +18,8 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
         "warningCount": 0
       };
     if (typeof users[nick] != 'undefined')
-      users[nick].push([time, text]);
+      try
+        users[nick].push([time, text]);
     else {
       users[nick] = [];
       users[nick].push([time, text]);
