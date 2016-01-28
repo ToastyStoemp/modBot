@@ -89,8 +89,13 @@ function reEvaluate(nick) {
   var maxSimilarityMultiLine = 0.75; //Max similarity between the first and third message
   var maxSimilaritySingleLine = 0.70; //Max similarity between the words in the text
 
+  var firstMessage = "";
+  var thirdMessage = "";
+
+if (users[nick].length > 2) {
   var firstMessage = users[nick][users[nick].length - 1][1];
   var thirdMessage = users[nick][users[nick].length - 3][1];
+}
 
 if (users[nick].length > 2 && similar_text(firstMessage, thirdMessage) >= maxSimilarityMultiLine) { //Checking the repetiviness of messages
     userStats[nick].warningCount++;
@@ -98,7 +103,7 @@ if (users[nick].length > 2 && similar_text(firstMessage, thirdMessage) >= maxSim
     console.log('User: ' + nick + ' has been deteced for spamming.');
     users[nick] = [];
     setTimeout(function() {userStats[nick].warningCount--;}, 60 * 60 * 60 * 1000);
-} else if (similar_inlineText(users[nick][users[nick].length - 1][1], maxSimilaritySingleLine)) {
+} else if (similar_inlineText(users[nick][users[nick].length - 1][1], maxSimilaritySingleLine, maxSimilarityMultiLine)) {
     userStats[nick].warningCount++;
     channel.sendMessage("@" + nick + " warning: " + userStats[nick].warningCount + ", you are spamming!");
     console.log('User: ' + nick + ' has been deteced for spamming');
@@ -160,7 +165,7 @@ function similar_text(first, second) {
   return similarityCounter/((first.length + second.length)/2.0);
 }
 
-function similar_inlineText(text, maxSimilarity) {
+function similar_inlineText(text, maxWordOccurence, maxSimilarity) {
   var checkedWords = [];
   var textArr = text.split(' ');
   if (textArr.length < 7)
@@ -169,9 +174,9 @@ function similar_inlineText(text, maxSimilarity) {
     var wordCount = 1;
     if (checkedWords.indexOf(textArr[i]) == -1) {
       for (var k = i + 1; k < textArr.length; k++)
-        if (textArr[i] == textArr[k])
+        if (textArr[i] == textArr[k] || similar_text(textArr[i], textArr[k]) > maxSimilarity)
           wordCount++;
-      if (wordCount / textArr.length >= maxSimilarity )
+      if (wordCount / textArr.length >= maxWordOccurence )
         return true;
     }
     checkedWords.push(textArr[i]);
