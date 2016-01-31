@@ -53,25 +53,24 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
       channel.sendRaw({cmd:"ban", nick:text.split(" ")[1]});
   } else if (text == ".source")
       channel.sendMessage(config.botName + " is written by ToastyStoemp, the source code  can be found here: https://github.com/ToastyStoemp/modBot ");
-
-  if (nick == "*") {
-    if (text.indexOf("Banned") != -1) {
-      var bannedUser = text.split(" ")[1];
-      userStats[bannedUser].banCount++;
-    }
-  }
 });
 
 chat.on("joining", function() {
   console.log('All systems online');
   setInterval(function() {
-    fs.writeFile("./userStats.json", JSON.stringify(userStats), function() {});
+    fs.writeFileSync("./userStats.json", JSON.stringify(userStats, undefined, 4));
   },  5 * 60 * 60 * 1000);
   setInterval(function() {
     channel.ping();
   }, 3 * 60 * 1000);
 });
 
+chat.on("info", function(session, text, time) {
+  var textWords = text.split(" ");
+  if(textWords[0] == "Banned") {
+    userStats[textWords[1]].banCount++;
+  }
+});
 chat.on("nicknameTaken", function() {
   console.log('nicknameTaken');
 });
