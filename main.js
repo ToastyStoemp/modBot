@@ -10,7 +10,7 @@ var users = {};
 chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
   var oldnick = nick;
   if (nick != config.botName) {
-    if (trip !== 'undefined')
+    if (trip)
       nick = nick + "#" + trip;
     if (typeof userStats[nick] == 'undefined')
       userStats[nick] = {
@@ -68,7 +68,8 @@ chat.on("joining", function() {
 chat.on("info", function(session, text, time) {
   var textWords = text.split(" ");
   if(textWords[0] == "Banned") {
-    userStats[textWords[1]].banCount++;
+    for(user of getName(textwords[1]))
+      userStats[user].banStatus++;
   }
 });
 chat.on("nicknameTaken", function() {
