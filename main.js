@@ -1,14 +1,12 @@
-var fs = require('fs');
-var HackChat = require("./hackchat.js");
-var chat = new HackChat();
-var config = require("./config.json");
-var channel = chat.join(config.botChannel, config.botName, config.botPass);
+var fs        = require('fs');
+var HackChat  = require("./hackchat.js");
+var chat      = new HackChat();
+var config    = require("./config.json");
+var channel   = chat.join(config.botChannel, config.botName, config.botPass);
 var userStats = require("./userStats.json");
-
-var users = {};
+var users     = {};
 
 chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
-  var oldnick = nick;
   if (nick != config.botName) {
     if (trip !== 'undefined')
       nick = nick + "#" + trip;
@@ -18,8 +16,11 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
         "warningCount": 0
       };
     if (typeof users[nick] != 'undefined')
-      try
+      try {
         users[nick].push([time, text]);
+      } catch (e){
+        console.log(e);
+      }
     else {
       users[nick] = [];
       users[nick].push([time, text]);
@@ -32,7 +33,7 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
   }
   if (text.split(" ")[0] == ".stats") {
       if (typeof text.split(' ')[1] != 'undefined' && config.mods.indexOf(trip) != -1) {
-        var matches = getName(text.split(' ')[1])
+        var matches = getName(text.split(' ')[1]);
         var message = "@" + nick + " \n";
         if (matches.length > 1) {
           for (var user of matches)
@@ -44,7 +45,7 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
   } else if (text == ".allStats" && config.mods.indexOf(trip) != -1) {
     var message = "";
     for (var name in userStats)
-      if (userStats[name].banCount != 0 || userStats[name].warningCount != 0)
+      if (userStats[name].banCount !== 0 || userStats[name].warningCount !== 0)
         message += name + " ~ banCount: " + userStats[name].banCount + " warningCount: " + userStats[name].warningCount + "\n";
     channel.sendMessage(message);
   } else if (text == ".save" && config.mods.indexOf(trip) != -1) {
@@ -90,8 +91,8 @@ function reEvaluate(nick) {
   var thirdMessage = "";
 
 if (users[nick].length > 2) {
-  var firstMessage = users[nick][users[nick].length - 1][1];
-  var thirdMessage = users[nick][users[nick].length - 3][1];
+  firstMessage = users[nick][users[nick].length - 1][1];
+  thirdMessage = users[nick][users[nick].length - 3][1];
 }
 
 if (users[nick].length > 2 && similar_text(firstMessage, thirdMessage) >= maxSimilarityMultiLine) { //Checking the repetiviness of messages
@@ -121,7 +122,7 @@ if (users[nick].length > 2 && similar_text(firstMessage, thirdMessage) >= maxSim
       setTimeout(function() {userStats[nick].warningCount--;}, 60 * 60 * 60 * 1000);
     }
   }
-};
+}
 
 function getName(nick) {
    var matches = [];
@@ -137,7 +138,7 @@ function similar_text(first, second) {
     return 1;
 
   firstArr = first.split(' ');
-  for (word in firstArr){
+  for (var word in firstArr){
     if (firstArr[word].indexOf('@') != -1)
       firstArr.splice(firstArr[word], 1);
     else
@@ -152,7 +153,7 @@ function similar_text(first, second) {
     else
       secondArr[word] = secondArr[word].split('').sort().join('');
   }
-  secondArr = secondArr.sort()
+  secondArr = secondArr.sort();
 
   var similarityCounter = 0;
   for (word in first)
