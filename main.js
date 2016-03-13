@@ -78,9 +78,9 @@ chat.on("joining", function() {
 });
 
 chat.on("info", function(session, text, time) {
-  var textWords = text.split(" ");
-  if(textWords[0] == "Banned") {
-    for(user of getName(textwords[1]))
+  var words = text.split(" ");
+  if(words[0] == "Banned") {
+    for(user of getName(words[1]))
       userStats[user].banStatus++;
   }
 });
