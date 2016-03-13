@@ -13,7 +13,10 @@ var links     = [];
 chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
   if (nick != config.botName) {
     if (trip !== 'undefined')
-      nick = nick + "#" + trip;
+      if (config.ignore.indexOf(trip != -1))
+        return;
+      else
+        nick = nick + "#" + trip;
     if (typeof userStats[nick] == 'undefined')
       userStats[nick] = {
         "banCount": 0,
