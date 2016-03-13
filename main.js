@@ -13,7 +13,7 @@ var links     = [];
 chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
   if (nick != config.botName) {
     if (trip !== 'undefined')
-      if (config.ignore.indexOf(trip != -1))
+      if (config.ignore.indexOf(trip) != -1)
         return;
       else
         nick = nick + "#" + trip;
