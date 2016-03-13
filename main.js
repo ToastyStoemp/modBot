@@ -1,10 +1,14 @@
 var fs        = require('fs');
+var request   = require("request");
+var uu        = require('url-unshort');
+var unshort   = new uu();
 var HackChat  = require("./hackchat.js");
 var chat      = new HackChat();
 var config    = require("./config.json");
 var channel   = chat.join(config.botChannel, config.botName, config.botPass);
 var userStats = require("./userStats.json");
 var users     = {};
+var links     = [];
 
 chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
   if (nick != config.botName) {
@@ -26,7 +30,11 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
       users[nick].push([time, text]);
     }
 
-    reEvaluate(nick);
+    var outPutMessage = '';
+    outPutMessage += linkCheck(text,nick)||'';
+    outPutMessage += reEvaluate(nick)||'';
+    if (outPutMessage !== '')
+      channel.sendMessage(outPutMessage);
     setTimeout(function() {
       users[nick].shift();
     }, 5 * 60 * 1000); //Substract a message counter after 5 minutes
@@ -54,25 +62,25 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
       channel.sendRaw({cmd:"ban", nick:text.split(" ")[1]});
   } else if (text == ".source")
       channel.sendMessage(config.botName + " is written by ToastyStoemp, the source code  can be found here: https://github.com/ToastyStoemp/modBot ");
-
-  if (nick == "*") {
-    if (text.indexOf("Banned") != -1) {
-      var bannedUser = text.split(" ")[1];
-      userStats[bannedUser].banCount++;
-    }
-  }
 });
 
 chat.on("joining", function() {
   console.log('All systems online');
   setInterval(function() {
-    fs.writeFile("./userStats.json", JSON.stringify(userStats), function() {});
+    fs.writeFileSync("./userStats.json", JSON.stringify(userStats, undefined, 4));
   },  5 * 60 * 60 * 1000);
   setInterval(function() {
     channel.ping();
   }, 3 * 60 * 1000);
 });
 
+chat.on("info", function(session, text, time) {
+  var textWords = text.split(" ");
+  if(textWords[0] == "Banned") {
+    for(user of getName(textwords[1]))
+      userStats[user].banStatus++;
+  }
+});
 chat.on("nicknameTaken", function() {
   console.log('nicknameTaken');
 });
@@ -81,45 +89,85 @@ chat.on("ratelimit", function() {
   console.log("Rate limit");
 });
 
+function linkCheck(text, nick) {
+  var output = '';
+  var urls = text.match(/(https?:\/\/)\S+?(?=[,.!?:)]?\s|$)/g);
+  for (var check in urls) {
+    request('https://sb-ssl.google.com/safebrowsing/api/lookup?client=demo-app&key='+ config.gooleApiKey + '&appver=1.5.2&pver=3.1&url=' + urls[check], function (error, response, body) {
+      if (!error && response.statusCode == 200) {
+        userStats[nick].warningCount++;
+        console.log('User: ' + nick + ' has been deteced for ' + body + ' link.');
+        channel.sendMessage ("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": this link has been flagged as $\\color{red}{" + body + "}$\n");
+      }
+    });
+    unshort.expand(urls[check], function (err, url) {
+      if (links.indexOf(urls[check]) != -1) {
+        userStats[nick].warningCount++;
+        setTimeout(function() {userStats[nick].warningCount--;}, 60 * 60 * 60 * 1000);
+        console.log('User: ' + nick + ' has been deteced for repetitive links.');
+        if (url)
+          channel.sendMessage ("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": this link has been posted recently,\n Target domain is: " +
+          url.match(/^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n]+)/im)[1] + "\n");
+        else
+          channel.sendMessage ("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": this link has been posted recently\n");
+      }
+      else {
+        links.push(urls[check]);
+        setTimeout(function() {
+          users[nick].shift();
+        }, 1 * 60 * 1000); //Substract a link after 20 minutes
+        if (url)
+          channel.sendMessage ("Target domain is: " + url.match(/^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n]+)/im)[1] + "\n");
+      }
+    });
+  }
+  return output;
+}
+
 function reEvaluate(nick) {
+  //Spam Region
   var maxMessages = 200; //Max amount of messages every 5 min
   var maxAvgtime = 1000; //Max difference that just baerly triggers the warning
   var maxSimilarityMultiLine = 0.75; //Max similarity between the first and third message
   var maxSimilaritySingleLine = 0.70; //Max similarity between the words in the text
 
-  var firstMessage = "";
+  var firstMessage = users[nick][users[nick].length - 1][1];
   var thirdMessage = "";
 
-if (users[nick].length > 2) {
-  firstMessage = users[nick][users[nick].length - 1][1];
+if (users[nick].length > 2)
   thirdMessage = users[nick][users[nick].length - 3][1];
-}
 
-if (users[nick].length > 2 && similar_text(firstMessage, thirdMessage) >= maxSimilarityMultiLine) { //Checking the repetiviness of messages
+if (firstMessage.split(/\r\n|\r|\n/).length > 8) {
     userStats[nick].warningCount++;
-    channel.sendMessage("@" + nick + " warning: " + userStats[nick].warningCount + ", you are spamming!");
+    console.log('User: ' + nick + ' has been deteced for long text.');
+    users[nick] = [];
+    setTimeout(function() {userStats[nick].warningCount--;}, 60 * 60 * 60 * 1000);
+    return ("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": long text, for code sharing use http://pastebin.com/ \n");
+} else if (users[nick].length > 2 && similar_text(firstMessage, thirdMessage) >= maxSimilarityMultiLine) { //Checking the repetiviness of messages
+    userStats[nick].warningCount++;
     console.log('User: ' + nick + ' has been deteced for spamming.');
     users[nick] = [];
     setTimeout(function() {userStats[nick].warningCount--;}, 60 * 60 * 60 * 1000);
+    return ("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": you are spamming!\n");
 } else if (similar_inlineText(users[nick][users[nick].length - 1][1], maxSimilaritySingleLine, maxSimilarityMultiLine)) {
     userStats[nick].warningCount++;
-    channel.sendMessage("@" + nick + " warning: " + userStats[nick].warningCount + ", you are spamming!");
     console.log('User: ' + nick + ' has been deteced for spamming');
     users[nick] = [];
     setTimeout(function() {userStats[nick].warningCount--;}, 60 * 60 * 60 * 1000);
+    return ("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": you are spamming!\n");
 } else if (users[nick].length - 1 > maxMessages) { //Checking the count of the last messages over the last 5 min
     userStats[nick].warningCount++;
-    channel.sendMessage("@" + nick + " warning: " + userStats[nick].warningCount + ", you are typing too much ~ possible spam!");
     console.log('User: ' + nick + ' has been deteced for flooding the chat.');
     users[nick] = [];
     setTimeout(function() {userStats[nick].warningCount--;}, 60 * 60 * 60 * 1000);
+    return ("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": you are typing too much ~ possible spam!\n");
 } else if (users[nick].length - 1 > 2) { //Checking the time difference between the last and third last message
     if (users[nick][users[nick].length - 1][0] - users[nick][users[nick].length - 3][0] < maxAvgtime) {
       userStats[nick].warningCount++;
-      channel.sendMessage("@" + nick + " warning: " + userStats[nick].warningCount + ", you are typing too fast!");
       console.log('User: ' + nick + ' has been deteced for fast typing in the chat.');
       users[nick] = [];
       setTimeout(function() {userStats[nick].warningCount--;}, 60 * 60 * 60 * 1000);
+      return ("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": you are typing too fast!\n");
     }
   }
 }
