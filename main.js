@@ -1,5 +1,6 @@
 var fs        = require('fs');
-var request   = require("request");
+var request   = require('request');
+var nudity    = require('./nude.js');
 var uu        = require('url-unshort');
 var unshort   = new uu();
 var HackChat  = require("./hackchat.js");
@@ -63,8 +64,11 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
       fs.writeFile("./userStats.json", JSON.stringify(userStats), function() {});
   } else if (text.split(" ")[0] == ".ban" && config.mods.indexOf(trip) != -1) {
       channel.sendRaw({cmd:"ban", nick:text.split(" ")[1]});
-  } else if (text == ".source")
+  } else if (text == ".source") {
       channel.sendMessage(config.botName + " is written by ToastyStoemp, the source code  can be found here: https://github.com/ToastyStoemp/modBot ");
+ } else if (text == o/) {
+      channel.sendMessage("\o");
+ }
 });
 
 chat.on("joining", function() {
@@ -123,7 +127,23 @@ function linkCheck(text, nick) {
           channel.sendMessage ("Target domain is: " + url.match(/^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n]+)/im)[1] + "\n");
       }
     });
+if(urls[check].match(/(?:jpg|png)/g)){
+try {    
+nudity.scanFile(urls[check], function(err, result) {
+    if (result) {
+      if (text.toLowerCase().indexOf("nsfw") == -1){
+	var fileName = urls[check].split("/");
+          channel.sendMessage(fileName[fileName.length -1] + " flagged as possible [NSFW]");
+	}
+    }
+    });
+}
+catch(err){
+console.log(err);
+}
+}
   }
+
   return output;
 }
 
@@ -232,3 +252,4 @@ function similar_inlineText(text, maxWordOccurence, maxSimilarity) {
   }
   return false;
 }
+
