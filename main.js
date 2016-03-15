@@ -66,8 +66,8 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
       channel.sendRaw({cmd:"ban", nick:text.split(" ")[1]});
   } else if (text == ".source") {
       channel.sendMessage(config.botName + " is written by ToastyStoemp, the source code  can be found here: https://github.com/ToastyStoemp/modBot ");
- } else if (text == o/) {
-      channel.sendMessage("\o");
+ } else if (text == "o/") {
+      channel.sendMessage("\\o");
  }
 });
 
