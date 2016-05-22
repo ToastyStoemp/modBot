@@ -5,16 +5,21 @@
  * Version: 0.0.1
  * License: MIT License
  */
-
+var Magic = require('mmmagic').Magic;
+var magic = new Magic();
 var Canvas = require('canvas');
-var Image = Image = Canvas.Image;
+var Image = Canvas.Image;
 var fs = require('fs');
 var request = require('request');
 
 exports.scanFile = function(path, cb) {
+if(path == "http://www.amanhardikar.com/mindmaps/Practice.png")
+return;
 
   var download = function(uri, filename, callback){
     request.head(uri, function(err, res, body){
+	if (err)
+	return cb(err);
       request(uri).pipe(fs.createWriteStream(filename)).on('close', callback);
     });
   };
@@ -23,8 +28,15 @@ exports.scanFile = function(path, cb) {
     fs.readFile('temp.png', function(err, data) {
   		if (err)
   			return cb(err);
-
-  		exports.scanData(data, cb);
+magic.detectFile('temp.png', function(err, result) {
+      if (err) throw err;
+      console.log(result);
+      // output on Windows with 32-bit node:
+      //    PE32 executable (DLL) (GUI) Intel 80386, for MS Windows
+  });
+console.log('skipped');
+  		try{exports.scanData(data, cb);}
+		catch(err){console.log(err)};
   	});
   });
 };
@@ -47,7 +59,8 @@ exports.scanData = function(data, cbPrimary) {
 		canvas.height = img.height;
 		// reset the result function
 		// draw the image into the canvas element
-		ctx.drawImage(img, 0, 0);
+		try{ctx.drawImage(img, 0, 0);}
+		catch(err){return;};
 	},
 	scanImage = function(cb){
 		process.nextTick(function() {
