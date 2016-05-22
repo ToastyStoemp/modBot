@@ -12,12 +12,6 @@ var users = {};
 var links = [];
 
 chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
-if (trip == "Y4BrCo")  
-channel.sendRaw({
-      cmd: "ban",
-      nick: nick
-    });
-
 if (nick != config.botName && nick != "pornBot") {
     if (text.indexOf(config.botName) != -1){
 	if (text.indexOf('stfu') != -1 || text.indexOf('shut') != -1){
