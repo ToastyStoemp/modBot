@@ -12,13 +12,13 @@ var inviteRegex = / invited you to \?[a-z0-9]{8}$/;
 var HackChatSession = (function (_super) {
     __extends(HackChatSession, _super);
     function HackChatSession(channel, username, password, options) {
-        if (options === void 0) { options = { server: "wss://127.0.0.1:12234/chat-ws" }; }
+        if (options === void 0) { options = { server: "wss://hack.chat/chat-ws" }; }
         _super.call(this);
         this.channel = channel;
         if (password !== undefined)
             username += "#" + password;
         this.username = username;
-        this.ws = new WebSocket("wss://127.0.0.1:12234/chat-ws");
+        this.ws = new WebSocket("wss://hack.chat/chat-ws");
         this.ws.on("open", function () {
             this.sendRaw({
                 cmd: "join",
@@ -108,7 +108,7 @@ var HackChat = (function (_super) {
         this.sessions = [];
     }
     HackChat.prototype.join = function (channel, username, password, options) {
-        if (options === void 0) { options = { server: "wss://127.0.0.1:12234/chat-ws" }; }
+        if (options === void 0) { options = { server: "wss://hack.chat/chat-ws" }; }
         var session = new HackChatSession(channel, username, password, options);
         session.on("joining", function () {
             this.emit("joining", session);
