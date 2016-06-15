@@ -11,19 +11,31 @@ var unshort = new uu();
 var HackChat = require("./hackchat.js");
 var chat = new HackChat();
 var config = require("./config.json");
-var channel = chat.join(config.botChannel, config.botName, config.botPass);
 var userStats = require("./userStats.json");
 var users = {};
 var links = [];
-var sites = [];
+var connections = {};
+connections[config.botChannel] = chat.join(config.botChannel, config.botName, config.botPass);
+
+setInterval(function() {
+    fs.writeFileSync("./userStats.json", JSON.stringify(userStats, undefined, 4));
+}, 5 * 60 * 60 * 1000);
+setInterval(function() {
+    for (var session in connections){
+      connections[session].ping();
+    }
+}, 3 * 60 * 1000);
 
 chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
     if (nick != config.botName && nick != "pornBot") {
-        if (text.indexOf(config.botName) != -1) {
+        if (text.toLowerCase().indexOf(config.botName.toLowerCase()) != -1) {
             if (text.indexOf('stfu') != -1 || text.indexOf('shut') != -1) {
-                channel.sendMessage('@' + nick + ' no, you shut up!');
+                session.sendMessage('@' + nick + ' no, you shut up!');
             } else if (text.indexOf('fuck') != -1) {
-                channel.sendMessage('@' + nick + ' fuck you too!');
+                session.sendMessage('@' + nick + ' fuck you too!');
+            }
+            else if (text.indexOf('sorry') != -1 || text.indexOf('sry') != -1) {
+                session.sendMessage('@' + nick + " it's okay, don't let it happen again :)");
             }
         }
         if (config.ignore.indexOf(trip) == -1) {
@@ -45,10 +57,10 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
                 users[nick].push([time, text]);
             }
             var outPutMessage = '';
-            outPutMessage += linkCheck(text, nick) || '';
+            outPutMessage += linkCheck(session, text, nick) || '';
             outPutMessage += reEvaluate(nick) || '';
             if (outPutMessage !== '')
-                channel.sendMessage(outPutMessage);
+                session.sendMessage(outPutMessage);
             setTimeout(function() {
                 users[nick].shift();
             }, 5 * 60 * 1000); //Substract a message counter after 5 minutes
@@ -61,38 +73,47 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
             if (matches.length > 1) {
                 for (var user of matches)
                     message += user + " ~ banCount: " + userStats[user].banCount + " warningCount: " + userStats[user].warningCount + "\n";
-                channel.sendMessage(message);
+                session.sendMessage(message);
             }
         } else
-            channel.sendMessage("@" + nick + " ~ banCount: " + userStats[nick].banCount + " warningCount: " + userStats[nick].warningCount + "\n");
+            session.sendMessage("@" + nick + " ~ banCount: " + userStats[nick].banCount + " warningCount: " + userStats[nick].warningCount + "\n");
     } else if (text == ".allStats" && config.mods.indexOf(trip) != -1) {
         var message = "";
         for (var name in userStats)
             if (userStats[name].banCount !== 0 || userStats[name].warningCount !== 0)
                 message += name + " ~ banCount: " + userStats[name].banCount + " warningCount: " + userStats[name].warningCount + "\n";
-        channel.sendMessage(message);
+        session.sendMessage(message);
     } else if (text == ".save" && config.mods.indexOf(trip) != -1) {
         fs.writeFile("./userStats.json", JSON.stringify(userStats), function() {});
     } else if (text.split(" ")[0] == ".ban" && config.mods.indexOf(trip) != -1) {
-        channel.sendRaw({
+        var target = text.split(" ")[1];
+        if (target[0] == '@')
+            target.shift();
+        if (config.banIgnore.indexOf(target) != -1)
+            return;
+        session.channel.sendRaw({
             cmd: "ban",
             nick: text.split(" ")[1]
         });
+    } else if (text.split(" ")[0] == ".reload" && config.mods.indexOf(trip) != -1) {
+        config = require("./config.json");
+    } else if (text.split(" ")[0] == ".join" && config.mods.indexOf(trip) != -1) {
+        connections[text.split(" ")[1]] = chat.join(text.split(" ")[1], config.botName, config.botPass);
+    } else if (text.split(" ")[0] == ".leave" && config.mods.indexOf(trip) != -1) {
+        console.log(session.channel)
+        if (session.channel == config.botChannel)
+            return;
+        connections[session.channel].leave();
+        delete connections[session.channel];
     } else if (text == ".source") {
-        channel.sendMessage(config.botName + " is written by ToastyStoemp, the source code  can be found here: https://github.com/ToastyStoemp/modBot ");
+        session.sendMessage(config.botName + " is written by ToastyStoemp, the source code  can be found here: https://github.com/ToastyStoemp/modBot ");
     } else if (text == "o/") {
-        channel.sendMessage("\\o");
+        session.sendMessage("\\o");
     }
 });
 
-chat.on("joining", function() {
-    console.log('All systems online');
-    setInterval(function() {
-        fs.writeFileSync("./userStats.json", JSON.stringify(userStats, undefined, 4));
-    }, 5 * 60 * 60 * 1000);
-    setInterval(function() {
-        channel.ping();
-    }, 3 * 60 * 1000);
+chat.on("joining", function(session) {
+    console.log('joined ' + session.channel);
 });
 
 chat.on("info", function(session, text, time) {
@@ -110,7 +131,7 @@ chat.on("ratelimit", function() {
     console.log("Rate limit");
 });
 
-function linkCheck(text, nick) {
+function linkCheck(session, text, nick) {
     var output = '';
     var urls = text.match(/(https?:\/\/)\S+?(?=[,.!?:)]?\s|$)/g);
     if (urls) {
@@ -124,16 +145,13 @@ function linkCheck(text, nick) {
                     if (!error && response.statusCode == 200) {
                         userStats[nick].warningCount++;
                         console.log('User: ' + nick + ' has been deteced for ' + body + ' link.');
-                        channel.sendMessage("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": this link has been flagged as $\\color{red}{" + body + "}$\n");
+                        session.sendMessage("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": this link has been flagged as $\\color{red}{" + body + "}$\n");
                     }
                 });
                 unshort.expand(url, function(err, urlnew) {
                     if (urlnew) {
-                        urlName = urlnew.match(/^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n]+)/im)[1];
-                        if (sites.indexOf(urlName) != -1) {
-                            channel.sendMessage("Target domain is: " + urlName + "\nWebsite preview: " + config.domain + urlName.split('.')[0] + ".jpg");
-                            return;
-                        }
+                        urlDomain = urlnew.match(/^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n]+)/im)[1];
+                        urlName = urlDomain.split('.')[0] + Math.floor(Math.random() * 1000);
                         render(urlnew, {
                                 format: 'jpg',
                                 quality: 100,
@@ -142,29 +160,20 @@ function linkCheck(text, nick) {
                                 timeout: 1000
                             })
                             .on('error', function() {
-                                channel.sendMessage("Target domain is: " + urlName + "\nPrieview could not be generated");
+                                session.sendMessage("Target domain is: " + urlDomain + "\nPrieview could not be generated");
                             })
-                            .pipe(fs.createWriteStream('/var/www/html/i/' + urlName.split('.')[0] + '.jpg'))
+                            .pipe(fs.createWriteStream('/var/www/html/i/' + urlName + '.jpg'))
                             .on('close', function() {
-                                sites.push(urlName);
-                                channel.sendMessage("Target domain is: " + urlName + "\nWebsite preview: " + config.domain + urlName.split('.')[0] + ".jpg");
+                                session.sendMessage("Target domain is: " + urlDomain + "\nWebsite preview: " + config.domain + urlName + ".jpg");
                                 setTimeout(function() {
-                                    fs.unlink('/var/www/html/i/' + urlName.split('.')[0] + '.jpg')
-                                    sites.shift();
+                                    fs.unlink('/var/www/html/i/' + urlName + '.jpg')
                                 }, 5 * 60 * 60 * 1000); //remove file after 1 hour
                             });
                     } else {
                         if (url.match(/(?:jpe?g|png)/g)) {
-                            scanFile(url, text);
-
-
-
+                            scanFile(session, url, text);
                         } else {
-                            urlName = url.match(/^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n]+)/im)[1];
-                            if (sites.indexOf(urlName) != -1) {
-                                channel.sendMessage("Website preview: " + config.domain + urlName.split('.')[0] + ".jpg");
-                                return;
-                            }
+                            urlName = url.match(/^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n]+)/im)[1].split('.')[0] + Math.floor(Math.random() * 1000);
                             render(url, {
                                     format: 'jpg',
                                     quality: 100,
@@ -175,13 +184,11 @@ function linkCheck(text, nick) {
                                 .on('error', function() {
                                     return;
                                 })
-                                .pipe(fs.createWriteStream('/var/www/html/i/' + urlName.split('.')[0] + '.jpg'))
+                                .pipe(fs.createWriteStream('/var/www/html/i/' + urlName + '.jpg'))
                                 .on('close', function() {
-                                    sites.push(urlName);
-                                    channel.sendMessage("Website preview: " + config.domain + urlName.split('.')[0] + ".jpg");
+                                    session.sendMessage("Website preview: " + config.domain + urlName + ".jpg");
                                     setTimeout(function() {
-                                        fs.unlink('/var/www/html/i/' + urlName.split('.')[0] + '.jpg')
-                                        sites.shift();
+                                        fs.unlink('/var/www/html/i/' + urlName + '.jpg')
                                     }, 5 * 60 * 60 * 1000); //remove file after 1 hour
                                 });
                         }
@@ -194,7 +201,7 @@ function linkCheck(text, nick) {
                 }, 1 * 60 * 60 * 1000);
                 console.log('User: ' + nick + ' has been deteced for repetitive links.');
                 urlName = url.match(/^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n]+)/im)[1];
-                channel.sendMessage("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": this link has been posted recently\n" + config.domain + urlName.split('.')[0] + ".jpg");
+                session.sendMessage("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": this link has been posted recently");
             }
         }
         return output;
@@ -317,7 +324,7 @@ function similar_inlineText(text, maxWordOccurence, maxSimilarity) {
     return false;
 }
 
-scanFile = function(url, message) {
+scanFile = function(session, url, message) {
     var download = function(uri, filename, callback) {
         var valid = true;
         request.get(url)
@@ -341,7 +348,7 @@ scanFile = function(url, message) {
                                     if (message.toLowerCase().indexOf("nsfw") == -1 && res) {
                                         message += fileName + " flagged as possible [NSFW]\n";
                                     }
-                                    channel.sendMessage(message + "Alternative link: " + config.domain + fileName + " available for 1 hour.");
+                                    session.sendMessage(message + "Alternative link: " + config.domain + fileName + " available for 1 hour.");
                                     setTimeout(function() {
                                         fs.unlink('/var/www/html/i/' + fileName)
                                     }, 1 * 60 * 60 * 1000); //remove file after 1 hour
@@ -349,7 +356,7 @@ scanFile = function(url, message) {
                             }
                         });
                     } catch (e) {
-                      console.log(e + "\nYour server might be out of memory (RAM)");
+                        console.log(e + "\nYour server might be out of memory (RAM)");
                     }
                 }
             });
