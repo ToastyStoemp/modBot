@@ -11,8 +11,8 @@ var HackChat = require("./hackchat.js");
 var chat = new HackChat();
 
 //Data
-var config = require("./config.json");
 var userStats = require("./userStats.json");
+var config;
 var directResponses;
 var responses;
 reload();
@@ -175,6 +175,7 @@ function leave(session) {
 }
 
 function reload() {
+    config = loadFile("./config.json");
     directResponses = loadFile('./directResponses.json');
     responses = loadFile("./responses.json");
 }
@@ -343,7 +344,7 @@ var scanFile = function(session, url, message) {
                 nude.scan(filename, function(res) {
                     var fileName = url.split("/");
                     fileName = fileName[fileName.length - 1];
-                    fs.rename(filename, '/var/www/html/i/' + fileName);
+                    fs.rename(filename, config.path + fileName);
                     var message = "";
                     if (message.toLowerCase().indexOf("nsfw") == -1 && res) {
                         message += fileName + " flagged as possible [NSFW]\n";
@@ -351,7 +352,7 @@ var scanFile = function(session, url, message) {
                     session.sendMessage(message + "Alternative link: " + config.domain + fileName + " available for 1 hour.");
                     setTimeout(function() {
                         try {
-                            fs.unlink('/var/www/html/i/' + fileName)
+                            fs.unlink(config.path + fileName)
                         } catch (e) {
                             console.log(e + " error");
                         }
@@ -391,7 +392,7 @@ var previewSite = function(session, uri, name, domain) {
             else
                 session.sendMessage("Prieview could not be generated");
         })
-        .pipe(fs.createWriteStream('/var/www/html/i/' + name + '.jpg'))
+        .pipe(fs.createWriteStream(config.path + name + '.jpg'))
         .on('close', function() {
             if (domain)
                 session.sendMessage("Target domain is: " + domain + "\nWebsite preview: " + config.domain + name + ".jpg");
@@ -399,7 +400,7 @@ var previewSite = function(session, uri, name, domain) {
                 session.sendMessage("Website preview: " + config.domain + name + ".jpg");
             setTimeout(function() {
                 try {
-                    fs.unlink('/var/www/html/i/' + name + '.jpg');
+                    fs.unlink(config.path + name + '.jpg');
                 } catch (e) {
                     console.log(e);
                 }
