@@ -3,112 +3,78 @@ var http = require('http');
 var request = require('request');
 var nude = require('nude');
 var imageExists = require('image-exists');
-var ImageStreamValidation = require('image-validator-stream');
 var uu = require('url-unshort');
 var phantom = require('phantom-render-stream');
 var render = phantom();
 var unshort = new uu();
 var HackChat = require("./hackchat.js");
 var chat = new HackChat();
+
+//Data
 var config = require("./config.json");
 var userStats = require("./userStats.json");
+var directResponses;
+var responses;
+reload();
+
+//Variables
 var users = {};
 var links = [];
 var connections = {};
+var that = this;
+
+//----------
+//initialze
+//----------
+
+//Connect to the default channel
 connections[config.botChannel] = chat.join(config.botChannel, config.botName, config.botPass);
 
+//save the stats of the users preriodically
 setInterval(function() {
     fs.writeFileSync("./userStats.json", JSON.stringify(userStats, undefined, 4));
 }, 5 * 60 * 60 * 1000);
+//ping for each connected channel
 setInterval(function() {
-    for (var session in connections){
-      connections[session].ping();
+    for (var session in connections) {
+        connections[session].ping();
     }
 }, 3 * 60 * 1000);
 
+
+//---------
+//events
+//---------
+
 chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
-    if (nick != config.botName && nick != "pornBot") {
+    if (nick != config.botName) {
+        //Check if he needs to send a direct reply
         if (text.toLowerCase().indexOf(config.botName.toLowerCase()) != -1) {
-            if (text.indexOf('stfu') != -1 || text.indexOf('shut') != -1) {
-                session.sendMessage('@' + nick + ' no, you shut up!');
-            } else if (text.indexOf('fuck') != -1) {
-                session.sendMessage('@' + nick + ' fuck you too!');
-            }
-            else if (text.indexOf('sorry') != -1 || text.indexOf('sry') != -1) {
-                session.sendMessage('@' + nick + " it's okay, don't let it happen again :)");
-            }
+            for (var type in directResponses)
+                if (text.indexOf(type) != -1)
+                    session.sendMessage('@' + nick + " " + directResponses[type]);
         }
+
+        //merges the nick and trip name
+        if (trip !== 'undefined')
+            nick = nick + "#" + trip;
+
+        //inspect the user
         if (config.ignore.indexOf(trip) == -1) {
-            if (trip !== 'undefined')
-                nick = nick + "#" + trip;
-            if (typeof userStats[nick] == 'undefined')
-                userStats[nick] = {
-                    "banCount": 0,
-                    "warningCount": 0
-                };
-            if (typeof users[nick] != 'undefined')
-                try {
-                    users[nick].push([time, text]);
-                } catch (e) {
-                    console.log(e);
-                }
-            else {
-                users[nick] = [];
-                users[nick].push([time, text]);
-            }
+            //push the image to the users' buffer
+            logMesage(nick, text, time);
+
             var outPutMessage = '';
             outPutMessage += linkCheck(session, text, nick) || '';
-            outPutMessage += reEvaluate(nick) || '';
+            outPutMessage += textCheck(nick) || '';
             if (outPutMessage !== '')
                 session.sendMessage(outPutMessage);
-            setTimeout(function() {
-                users[nick].shift();
-            }, 5 * 60 * 1000); //Substract a message counter after 5 minutes
         }
-    }
-    if (text.split(" ")[0] == ".stats") {
-        if (typeof text.split(' ')[1] != 'undefined' && config.mods.indexOf(trip) != -1) {
-            var matches = getName(text.split(' ')[1]);
-            var message = "@" + nick + " \n";
-            if (matches.length > 1) {
-                for (var user of matches)
-                    message += user + " ~ banCount: " + userStats[user].banCount + " warningCount: " + userStats[user].warningCount + "\n";
-                session.sendMessage(message);
-            }
-        } else
-            session.sendMessage("@" + nick + " ~ banCount: " + userStats[nick].banCount + " warningCount: " + userStats[nick].warningCount + "\n");
-    } else if (text == ".allStats" && config.mods.indexOf(trip) != -1) {
-        var message = "";
-        for (var name in userStats)
-            if (userStats[name].banCount !== 0 || userStats[name].warningCount !== 0)
-                message += name + " ~ banCount: " + userStats[name].banCount + " warningCount: " + userStats[name].warningCount + "\n";
-        session.sendMessage(message);
-    } else if (text == ".save" && config.mods.indexOf(trip) != -1) {
-        fs.writeFile("./userStats.json", JSON.stringify(userStats), function() {});
-    } else if (text.split(" ")[0] == ".ban" && config.mods.indexOf(trip) != -1) {
-        var target = text.split(" ")[1];
-        if (target[0] == '@')
-            target.shift();
-        if (config.banIgnore.indexOf(target) != -1)
-            return;
-        session.channel.sendRaw({
-            cmd: "ban",
-            nick: text.split(" ")[1]
-        });
-    } else if (text.split(" ")[0] == ".reload" && config.mods.indexOf(trip) != -1) {
-        config = require("./config.json");
-    } else if (text.split(" ")[0] == ".join" && config.mods.indexOf(trip) != -1) {
-        connections[text.split(" ")[1]] = chat.join(text.split(" ")[1], config.botName, config.botPass);
-    } else if (text.split(" ")[0] == ".leave" && config.mods.indexOf(trip) != -1) {
-        console.log(session.channel)
-        if (session.channel == config.botChannel)
-            return;
-        connections[session.channel].leave();
-        delete connections[session.channel];
-    } else if (text == ".source") {
-        session.sendMessage(config.botName + " is written by ToastyStoemp, the source code  can be found here: https://github.com/ToastyStoemp/modBot ");
-    } else if (text == "o/") {
-        session.sendMessage("\\o");
+
+        //parse commands
+        if (text[0] == config.commandPrefix) {
+            parseCommand(session, nick, text, config.mods.indexOf(trip) != -1);
+        }
     }
 });
 
@@ -117,6 +83,7 @@ chat.on("joining", function(session) {
 });
 
 chat.on("info", function(session, text, time) {
+    //check if someone got banned
     var words = text.split(" ");
     if (words[0] == "Banned") {
         for (user of getName(words[1]))
@@ -124,6 +91,7 @@ chat.on("info", function(session, text, time) {
     }
 });
 chat.on("nicknameTaken", function() {
+    // TODO: auto change nick
     console.log('nicknameTaken');
 });
 
@@ -131,141 +99,52 @@ chat.on("ratelimit", function() {
     console.log("Rate limit");
 });
 
-function linkCheck(session, text, nick) {
-    var output = '';
-    var urls = text.match(/(https?:\/\/)\S+?(?=[,.!?:)]?\s|$)/g);
-    if (urls) {
-        for (var url of urls) {
-            if (links.indexOf(url) == -1) {
-                links.push(url);
-                setTimeout(function() {
-                    links.shift();
-                }, 10 * 60 * 1000); //Substract a link after 1 minutes
-                request('https://sb-ssl.google.com/safebrowsing/api/lookup?client=demo-app&key=' + config.gooleApiKey + '&appver=1.5.2&pver=3.1&url=' + url, function(error, response, body) {
-                    if (!error && response.statusCode == 200) {
-                        userStats[nick].warningCount++;
-                        console.log('User: ' + nick + ' has been deteced for ' + body + ' link.');
-                        session.sendMessage("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": this link has been flagged as $\\color{red}{" + body + "}$\n");
-                    }
-                });
-                unshort.expand(url, function(err, urlnew) {
-                    if (urlnew) {
-                        urlDomain = urlnew.match(/^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n]+)/im)[1];
-                        urlName = urlDomain.split('.')[0] + Math.floor(Math.random() * 1000);
-                        render(urlnew, {
-                                format: 'jpg',
-                                quality: 100,
-                                width: 1280,
-                                height: 960,
-                                timeout: 1000
-                            })
-                            .on('error', function() {
-                                session.sendMessage("Target domain is: " + urlDomain + "\nPrieview could not be generated");
-                            })
-                            .pipe(fs.createWriteStream('/var/www/html/i/' + urlName + '.jpg'))
-                            .on('close', function() {
-                                session.sendMessage("Target domain is: " + urlDomain + "\nWebsite preview: " + config.domain + urlName + ".jpg");
-                                setTimeout(function() {
-                                    fs.unlink('/var/www/html/i/' + urlName + '.jpg')
-                                }, 5 * 60 * 60 * 1000); //remove file after 1 hour
-                            });
-                    } else {
-                        if (url.match(/(?:jpe?g|png)/g)) {
-                            scanFile(session, url, text);
-                        } else {
-                            urlName = url.match(/^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n]+)/im)[1].split('.')[0] + Math.floor(Math.random() * 1000);
-                            render(url, {
-                                    format: 'jpg',
-                                    quality: 100,
-                                    width: 1280,
-                                    height: 960,
-                                    timeout: 1000
-                                })
-                                .on('error', function() {
-                                    return;
-                                })
-                                .pipe(fs.createWriteStream('/var/www/html/i/' + urlName + '.jpg'))
-                                .on('close', function() {
-                                    session.sendMessage("Website preview: " + config.domain + urlName + ".jpg");
-                                    setTimeout(function() {
-                                        fs.unlink('/var/www/html/i/' + urlName + '.jpg')
-                                    }, 5 * 60 * 60 * 1000); //remove file after 1 hour
-                                });
-                        }
-                    }
-                });
-            } else {
-                userStats[nick].warningCount++;
-                setTimeout(function() {
-                    userStats[nick].warningCount--;
-                }, 1 * 60 * 60 * 1000);
-                console.log('User: ' + nick + ' has been deteced for repetitive links.');
-                urlName = url.match(/^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n]+)/im)[1];
-                session.sendMessage("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": this link has been posted recently");
-            }
+//--------------
+//Bot Functions
+//--------------
+
+//addes the lattest message to a buffer
+function logMesage(nick, text, time) {
+    //if user is not initialized yet, initialze it
+    if (userStats[nick] && users[nick])
+        users[nick].push({
+            "time": time,
+            "text": text
+        }); //add the message to the users buffer
+    else {
+        if (!userStats[nick]) {
+            //initialize the userstats data
+            userStats[nick] = {
+                "banCount": 0,
+                "warningCount": 0
+            };
         }
-        return output;
+
+        //initialize the users buffer
+        users[nick] = [{
+            "time": time,
+            "text": text
+        }];
     }
+
+    //Substract a message counter after 5 minutes for this user
+    setTimeout(function() {
+        users[nick].shift();
+    }, 5 * 60 * 1000);
+};
+
+//Give a user a warning
+function warnUser(nick, reason) {
+    userStats[nick].warningCount++;
+    console.log('User: ' + nick + ' ' + reason);
+    users[nick] = [];
+    setTimeout(function() {
+        userStats[nick].warningCount--;
+    }, 1 * 60 * 60 * 1000);
+    return ("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": " + reason + "\n");
 }
 
-function reEvaluate(nick) {
-    //Spam Region
-    var maxMessages = 200; //Max amount of messages every 5 min
-    var maxAvgtime = 1000; //Max difference that just baerly triggers the warning
-    var maxSimilarityMultiLine = 0.75; //Max similarity between the first and third message
-    var maxSimilaritySingleLine = 0.70; //Max similarity between the words in the text
-
-    var firstMessage = users[nick][users[nick].length - 1][1];
-    var thirdMessage = "";
-
-    if (users[nick].length > 2)
-        thirdMessage = users[nick][users[nick].length - 3][1];
-
-    if (firstMessage.split(/\r\n|\r|\n/).length > 8) {
-        userStats[nick].warningCount++;
-        console.log('User: ' + nick + ' has been deteced for long text.');
-        users[nick] = [];
-        setTimeout(function() {
-            userStats[nick].warningCount--;
-        }, 1 * 60 * 60 * 1000);
-        return ("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": long text, for code sharing use http://pastebin.com/ \n");
-    } else if (users[nick].length > 2 && similar_text(firstMessage, thirdMessage) >= maxSimilarityMultiLine) { //Checking the repetiviness of messages
-        userStats[nick].warningCount++;
-        console.log('User: ' + nick + ' has been deteced for spamming.');
-        users[nick] = [];
-        setTimeout(function() {
-            userStats[nick].warningCount--;
-        }, 1 * 60 * 60 * 1000);
-        return ("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": you are spamming!\n");
-    } else if (similar_inlineText(users[nick][users[nick].length - 1][1], maxSimilaritySingleLine, maxSimilarityMultiLine)) {
-        userStats[nick].warningCount++;
-        console.log('User: ' + nick + ' has been deteced for spamming');
-        users[nick] = [];
-        setTimeout(function() {
-            userStats[nick].warningCount--;
-        }, 1 * 60 * 60 * 1000);
-        return ("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": you are spamming!\n");
-    } else if (users[nick].length - 1 > maxMessages) { //Checking the count of the last messages over the last 5 min
-        userStats[nick].warningCount++;
-        console.log('User: ' + nick + ' has been deteced for flooding the chat.');
-        users[nick] = [];
-        setTimeout(function() {
-            userStats[nick].warningCount--;
-        }, 1 * 60 * 60 * 1000);
-        return ("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": you are typing too much ~ possible spam!\n");
-    } else if (users[nick].length - 1 > 2) { //Checking the time difference between the last and third last message
-        if (users[nick][users[nick].length - 1][0] - users[nick][users[nick].length - 3][0] < maxAvgtime) {
-            userStats[nick].warningCount++;
-            console.log('User: ' + nick + ' has been deteced for fast typing in the chat.');
-            users[nick] = [];
-            setTimeout(function() {
-                userStats[nick].warningCount--;
-            }, 1 * 60 * 60 * 1000);
-            return ("@" + nick + " $\\color{orange}{warning}$ #" + userStats[nick].warningCount + ": you are typing too fast!\n");
-        }
-    }
-}
-
+//return an arry with results from one nick name in the user stats
 function getName(nick) {
     var matches = [];
     for (var user in userStats) {
@@ -275,6 +154,83 @@ function getName(nick) {
     return matches;
 }
 
+//Join a channel
+function join(channel) {
+    if (!connections[channel]) {
+        connections[channel] = chat.join(channel, config.botName, config.botPass);
+        console.log("joined " + channel);
+    }
+}
+
+//Leave a channel
+function leave(session) {
+    if (session.channel == config.botChannel) {
+        session.sendMessage("Can't leave this channel");
+        return;
+    }
+    if (connections[session.channel]) {
+        connections[session.channel].leave();
+        console.log("left " + session.channel);
+    }
+}
+
+function reload() {
+    directResponses = loadFile('./directResponses.json');
+    responses = loadFile("./responses.json");
+}
+
+//-----------
+//spam detection functions
+//-----------
+
+//controll text
+function textCheck(nick) {
+    //could be that link check already passed a warning
+    if (users[nick])
+        return;
+
+    //Spam Region
+    var maxMessages = 200; //Max amount of messages every 5 min
+    var maxAvgtime = 1000; //Max difference that just baerly triggers the warning
+    var maxSimilarityMultiLine = 0.75; //Max similarity between the first and third message
+    var maxSimilaritySingleLine = 0.70; //Max similarity between the words in the text
+    var maxLinecount = 8; //amount of lines a message can be max
+    var maxWordLength = 200;
+
+    var hasMulitpleMessages = users[nick].length > 2;
+
+    var lastMessage = users[nick][users[nick].length - 1]; //last message send
+    var thirdLastMessage = hasMulitpleMessages ? thirdLastMessage = users[nick][users[nick].length - 3] : ""; //third from last message send
+
+    //checks if a series of words is not longer then maxLinecount thresh hold
+    if (lastMessage.text.split(/\r\n|\r|\n/).length > maxLinecount)
+        return warnUser(nick, responses.longText); //long text
+
+    //check if a single word is not too long
+    if (longestWord(lastMessage.text).length > maxWordLength)
+        return warnUser(nick, responses.longWord); //long word
+
+    //check if a word is too repetitive within a text ( spam spam spam ) for example
+    if (similar_inlineText(lastMessage.text, maxSimilaritySingleLine, maxSimilarityMultiLine))
+        return warnUser(nick, responses.similarWords); // similar words
+
+    //check if the user did not post too many message in the last n minutes
+    if (users[nick].length > maxMessages)
+        return warnUser(nick, responses.longTermSpeed); // long term speed count
+
+    if (hasMulitpleMessages) { //spam checks that require multiple messages ( 3 )
+
+        //check if this message is similar to the third from last message
+        if (similar_text(lastMessage.text, thirdLastMessage.text) >= maxSimilarityMultiLine)
+            return warnUser(nick, responses.similarMessage); // similar messages
+
+        //check the speed between the last and third from last is not too fast
+        if (lastMessage.time - thirdLastMessage.time < maxAvgtime)
+            return warnUser(nick, responses.shortTermSpeed); // Short term speed count
+    }
+}
+
+//returns how similar 2 texts are
 function similar_text(first, second) {
     if (first == second)
         return 1;
@@ -287,7 +243,6 @@ function similar_text(first, second) {
             firstArr[word] = firstArr[word].split('').sort().join('');
     }
     firstArr = firstArr.sort();
-
     secondArr = second.split(' ');
     for (word in secondArr) {
         if (secondArr[word].indexOf('@') != -1)
@@ -305,6 +260,7 @@ function similar_text(first, second) {
     return similarityCounter / ((first.length + second.length) / 2.0);
 }
 
+//checks for repeating words within a text
 function similar_inlineText(text, maxWordOccurence, maxSimilarity) {
     var checkedWords = [];
     var textArr = text.split(' ');
@@ -324,42 +280,211 @@ function similar_inlineText(text, maxWordOccurence, maxSimilarity) {
     return false;
 }
 
-scanFile = function(session, url, message) {
-    var download = function(uri, filename, callback) {
-        var valid = true;
-        request.get(url)
-            .on('response', function(response) {
-                if (response.statusCode != 200)
-                    valid = false;
-                if (response.headers['content-type'].indexOf('image') == -1) // 'image/png'
-                    valid = false;
-            })
-            .pipe(fs.createWriteStream(filename))
-            .on('close', function() {
-                if (valid) {
-                    try {
-                        imageExists(filename, function(exists) {
-                            if (exists) {
-                                nude.scan(filename, function(res) {
-                                    var fileName = url.split("/");
-                                    fileName = fileName[fileName.length - 1];
-                                    fs.rename(filename, '/var/www/html/i/' + fileName);
-                                    var message = "";
-                                    if (message.toLowerCase().indexOf("nsfw") == -1 && res) {
-                                        message += fileName + " flagged as possible [NSFW]\n";
-                                    }
-                                    session.sendMessage(message + "Alternative link: " + config.domain + fileName + " available for 1 hour.");
-                                    setTimeout(function() {
-                                        fs.unlink('/var/www/html/i/' + fileName)
-                                    }, 1 * 60 * 60 * 1000); //remove file after 1 hour
-                                });
-                            }
-                        });
-                    } catch (e) {
-                        console.log(e + "\nYour server might be out of memory (RAM)");
-                    }
-                }
-            });
-    };
-    download(url, 'temp.jpg');
+//returns the longers word in a text
+function longestWord(text) {
+    var textArr = text.split(' ');
+    var longest = textArr[0];
+    for (var word of textArr) {
+        if (word.length > longest.length) {
+            longest = word;
+        }
+    }
+    return longest;
 };
+
+//Controll links
+function linkCheck(session, text, nick) {
+    var urls = text.match(/(https?:\/\/)\S+?(?=[,.!?:)]?\s|$)/g); //returns an array with all links in the current message
+    if (urls) {
+        for (var url of urls) {
+            if (links.indexOf(url) == -1) {
+                //add the link to a list, to keep track of previously posted links
+                links.push(url);
+                setTimeout(function() {
+                    links.shift();
+                }, 10 * 60 * 1000); //Substract a link after 1 minutes
+
+                //Preform a malicious link test, using the google API
+                request('https://sb-ssl.google.com/safebrowsing/api/lookup?client=demo-app&key=' + config.gooleApiKey + '&appver=1.5.2&pver=3.1&url=' + url, function(error, response, body) {
+                    if (!error && response.statusCode == 200)
+                        session.sendMessage(warnUser(nick, "this link has been flagged as $\\color{red}{" + body + "}$"));
+                });
+
+                unshort.expand(url, function(err, urlnew) {
+                    if (urlnew)
+                        url = urlnew;
+
+                    if (url.match(/(?:jpe?g|png)/g)) {
+                        //preform nudity scan
+                        scanFile(session, url, text);
+                    } else {
+                        //if the site was succesfully unshortend, render a preview, including the target domain
+                        urlDomain = url.match(/^(?:https?:\/\/)?(?:[^@\n]+@)?(?:www\.)?([^:\/\n]+)/im)[1];
+                        urlName = urlDomain.split('.')[0] + Math.floor(Math.random() * 1000);
+                        previewSite(session, url, urlName, urlnew ? urlDomain : null);
+                    }
+                });
+            } else
+                session.sendMessage(warnUser(nick, "this link has been posted recently"));
+        }
+    }
+}
+
+//-----------
+//file related Functions
+//-----------
+
+//Scan a file for nudity
+var scanFile = function(session, url, message) {
+    var filename = "temp.jpg";
+    downloadFile(url, filename, true,
+        function() {
+            try {
+                nude.scan(filename, function(res) {
+                    var fileName = url.split("/");
+                    fileName = fileName[fileName.length - 1];
+                    fs.rename(filename, '/var/www/html/i/' + fileName);
+                    var message = "";
+                    if (message.toLowerCase().indexOf("nsfw") == -1 && res) {
+                        message += fileName + " flagged as possible [NSFW]\n";
+                    }
+                    session.sendMessage(message + "Alternative link: " + config.domain + fileName + " available for 1 hour.");
+                    setTimeout(function() {
+                        try {
+                            fs.unlink('/var/www/html/i/' + fileName)
+                        } catch (e) {
+                            console.log(e + " error");
+                        }
+                    }, 1 * 60 * 60 * 1000); //remove file after 1 hour
+                });
+            } catch (e) {
+                console.log(e + "\nYour server might be out of memory (RAM)");
+            }
+        });
+};
+
+//download file
+var downloadFile = function(uri, filename, validate, callback) {
+    var valid = true;
+    request.get(uri)
+        .on('response', function(response) {
+            if (response.statusCode != 200)
+                valid = false;
+            if (response.headers['content-type'].indexOf('image') == -1) // 'image/png'
+                valid = false;
+        })
+        .pipe(fs.createWriteStream(filename))
+        .on('close', function() {
+            if (validate) {
+                if (valid)
+                    callback();
+            } else callback();
+        });
+};
+
+//render a preview of a Website
+var previewSite = function(session, uri, name, domain) {
+    render(uri, config.previewSettings)
+        .on('error', function() {
+            if (domain)
+                session.sendMessage("Target domain is: " + domain + "\nPrieview could not be generated");
+            else
+                session.sendMessage("Prieview could not be generated");
+        })
+        .pipe(fs.createWriteStream('/var/www/html/i/' + name + '.jpg'))
+        .on('close', function() {
+            if (domain)
+                session.sendMessage("Target domain is: " + domain + "\nWebsite preview: " + config.domain + name + ".jpg");
+            else
+                session.sendMessage("Website preview: " + config.domain + name + ".jpg");
+            setTimeout(function() {
+                try {
+                    fs.unlink('/var/www/html/i/' + name + '.jpg');
+                } catch (e) {
+                    console.log(e);
+                }
+            }, 1 * 60 * 60 * 1000); //remove file after 1 hour
+        });
+}
+
+//Async file loader
+function loadFile(name) {
+    return JSON.parse(fs.readFileSync(name).toString());
+}
+
+//---------
+//commands
+//---------
+
+parseCommand = function(session, nick, message, isMod) {
+    var args = message.split(" ");
+    var command = String(args.splice(0, 1));
+    command = command.substr(1, command.length);
+
+    //normal commands
+    switch (command) {
+        //list stats for the current user
+        case "stats":
+            if (!isMod || !args) {
+                session.sendMessage("@" + nick + " ~ banCount: " + userStats[nick].banCount + " warningCount: " + userStats[nick].warningCount + "\n");
+                return;
+            }
+            break;
+
+            //Show the source of the bot
+        case "source":
+            session.sendMessage(config.botName + " is written by ToastyStoemp, the source code  can be found here: https://github.com/ToastyStoemp/modBot ");
+            return;
+    }
+
+    //Moderator commands
+    if (isMod) {
+        switch (command) {
+
+            //lists all the stats for all users
+            case "allStats":
+                var newMessage = "";
+                for (var name in userStats)
+                    if (userStats[name].banCount !== 0 || userStats[name].warningCount !== 0)
+                        newMessage += name + " ~ banCount: " + userStats[name].banCount + " warningCount: " + userStats[name].warningCount + "\n";
+                session.sendMessage(newMessage);
+                return;
+
+                //saves the userstats
+            case "save":
+                fs.writeFile("./userStats.json", JSON.stringify(userStats), function() {});
+                return;
+
+                //bans a user
+            case "ban":
+                var target = text.split(" ")[1];
+                if (target[0] == '@')
+                    target = target.substr(1, target.length);
+                if (config.banIgnore.indexOf(target) != -1)
+                    return;
+                session.sendRaw({
+                    cmd: "ban",
+                    nick: text.split(" ")[1]
+                });
+                return;
+
+                //reloads some entities (check the reload function in main.js)
+            case "reload":
+                reload();
+                return;
+
+                //joins a specific channel
+            case "join":
+                if (args) {
+                    join(args[0]);
+                    return;
+                }
+                //connections[args[1]] = chat.join(text.split(" ")[1], config.botName, config.botPass);
+
+                //leave specific channel
+            case "leave":
+                leave(session);
+                return;
+        }
+    }
+}

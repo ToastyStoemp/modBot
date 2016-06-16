@@ -1,0 +1,8 @@
+{
+  "longText" :  "long text, for code sharing use http://pastebin.com/",
+  "longWord" :  "try making a sentence next time",
+  "similarMessage"  : "you are spamming!",
+  "similarWords"    : "you are spamming!",
+  "longTermSpeed"   : "you are typing too much ~ possible spam!",
+  "shortTermSpeed"  : "you are typing too fast!"
+}

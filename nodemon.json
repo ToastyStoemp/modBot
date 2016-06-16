@@ -1,0 +1,7 @@
+{
+  "verbose": true,
+  "ignore": ["userStats.json"],
+  "execMap": {
+    "pde": "main.js"
+  }
+}
