@@ -218,6 +218,7 @@ function textCheck(nick) {
     var maxSimilaritySingleLine = 0.70; //Max similarity between the words in the text
     var maxLinecount = 8; //amount of lines a message can be max
     var maxWordLength = 200;
+    var maxCharCount = 1500;
 
     var hasMulitpleMessages = users[nick].length > 2;
 
@@ -229,6 +230,10 @@ function textCheck(nick) {
         //checks if a series of words is not longer then maxLinecount thresh hold
         if (lastMessage.text.split(/\r\n|\r|\n/).length > maxLinecount)
             return warnUser(nick, responses.longText); //long text
+
+        //checks if there are not too many characters in a text
+        if (charCount(lastMessage.text) > maxCharCount)
+            return warnUser(nick, responses.longText); //long text 2
 
         //check if a single word is not too long
         if (longestWord(lastMessage.text).length > maxWordLength)
@@ -316,6 +321,11 @@ function longestWord(text) {
     }
     return longest;
 };
+
+//returns the amount of characters a text is in length
+function charCount(text) {
+    return text.length();
+}
 
 //Controll links
 function linkCheck(session, text, nick) {
