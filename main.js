@@ -483,14 +483,14 @@ parseCommand = function(session, nick, message, isMod) {
 
                 //bans a user
             case "ban":
-                var target = text.split(" ")[1];
+                var target = message.split(" ")[1];
                 if (target[0] == '@')
                     target = target.substr(1, target.length);
                 if (config.banIgnore.indexOf(target) != -1)
                     return;
                 session.sendRaw({
                     cmd: "ban",
-                    nick: text.split(" ")[1]
+                    nick: message.split(" ")[1]
                 });
                 return;
 
