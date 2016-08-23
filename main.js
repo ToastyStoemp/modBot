@@ -48,12 +48,6 @@ setInterval(function() {
 
 chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
     if (nick != config.botName) {
-        //Check if he needs to send a direct reply
-        if (text.toLowerCase().indexOf(config.botName.toLowerCase()) != -1) {
-            for (var type in directResponses)
-                if (text.indexOf(type) != -1)
-                    session.sendMessage('@' + nick + " " + directResponses[type]);
-        }
 
         //removes the user from the afk list
         if (afk.indexOf(nick) != -1)
@@ -79,6 +73,14 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
         if (text[0] == config.commandPrefix) {
             parseCommand(session, nick, text, config.mods.indexOf(trip) != -1);
         } else {
+          //Check if he needs to send a direct reply
+          if (text.toLowerCase().indexOf(config.botName.toLowerCase()) != -1) {
+              for (var type in directResponses)
+                  if (text.indexOf(type) != -1)
+                      session.sendMessage('@' + nick + " " + directResponses[type]);
+          }
+
+          //check if an AFK person was mentioned
           var atIndex = text.indexOf('@');
           if (atIndex != -1) {
             var targetNick = text.substr(atIndex + 1, text.indexOf(' ', atIndex) - 1);
