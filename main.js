@@ -65,8 +65,10 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
             var outPutMessage = '';
             outPutMessage += linkCheck(session, text, nick) || '';
             outPutMessage += textCheck(nick) || '';
-            if (outPutMessage !== '')
+            if (outPutMessage !== ''){
                 session.sendMessage(outPutMessage);
+                return;
+            }
         }
 
         //parse commands
