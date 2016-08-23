@@ -1,13 +1,13 @@
 {
   "botName": "modBot",
-  "botPass": "pass here",
+  "botPass": "pass_here",
   "botChannel": "channel here",
   "commandPrefix": ".",
   "mods": ["mod Trips here"],
   "ignore": ["ignore trips here"],
-  "banIgnore": ["ban nicks here"],
+  "banIgnore": ["unbanable nicks here"],
   "gooleApiKey": "",
-  "domain": "domain here",
-  "path": "./i/  location here  ",
+  "domain": "domain for files hosting here",
+  "path": "file location here ",
   "previewSettings" : { "format": "jpg", "quality": 100, "width": 1280, "height": 960,"timeout": 1000 }
 }

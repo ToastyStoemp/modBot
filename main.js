@@ -2,7 +2,6 @@ var fs = require('fs');
 var http = require('http');
 var request = require('request');
 var nude = require('nude');
-var imageExists = require('image-exists');
 var uu = require('url-unshort');
 var phantom = require('phantom-render-stream');
 var render = phantom();
@@ -21,7 +20,8 @@ reload();
 var users = {};
 var links = [];
 var connections = {};
-var that = this;
+var afk = [];
+
 
 //----------
 //initialze
@@ -55,6 +55,10 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
                     session.sendMessage('@' + nick + " " + directResponses[type]);
         }
 
+        //removes the user from the afk list
+        if (afk.indexOf(nick) != -1)
+        afk.splice(afk.indexOf(nick), 1);
+
         //merges the nick and trip name
         if (trip !== 'undefined')
             nick = nick + "#" + trip;
@@ -74,6 +78,13 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
         //parse commands
         if (text[0] == config.commandPrefix) {
             parseCommand(session, nick, text, config.mods.indexOf(trip) != -1);
+        } else {
+          var atIndex = text.indexOf('@');
+          if (atIndex != -1) {
+            var targetNick = text.substr(atIndex + 1, text.indexOf(' ', atIndex) - 1);
+            if (afk.indexOf(targetNick) != -1)
+              session.sendMessage('@' + nick.split('#')[0] + ' ' + targetNick + ' is afk.');
+          }
         }
     }
 });
@@ -98,6 +109,11 @@ chat.on("nicknameTaken", function() {
 chat.on("ratelimit", function() {
     console.log("Rate limit");
 });
+
+chat.on("onlineRemove", function(session, nick) {
+  if (afk.indexOf(nick) != -1)
+    afk.splice(afk.indexOf(nick), 1);
+})
 
 //--------------
 //Bot Functions
@@ -186,8 +202,9 @@ function reload() {
 
 //controll text
 function textCheck(nick) {
+
     //could be that link check already passed a warning
-    if (users[nick])
+    if (!(users[nick]))
         return;
 
     //Spam Region
@@ -203,31 +220,34 @@ function textCheck(nick) {
     var lastMessage = users[nick][users[nick].length - 1]; //last message send
     var thirdLastMessage = hasMulitpleMessages ? thirdLastMessage = users[nick][users[nick].length - 3] : ""; //third from last message send
 
-    //checks if a series of words is not longer then maxLinecount thresh hold
-    if (lastMessage.text.split(/\r\n|\r|\n/).length > maxLinecount)
-        return warnUser(nick, responses.longText); //long text
+    if (lastMessage) {
 
-    //check if a single word is not too long
-    if (longestWord(lastMessage.text).length > maxWordLength)
-        return warnUser(nick, responses.longWord); //long word
+        //checks if a series of words is not longer then maxLinecount thresh hold
+        if (lastMessage.text.split(/\r\n|\r|\n/).length > maxLinecount)
+            return warnUser(nick, responses.longText); //long text
 
-    //check if a word is too repetitive within a text ( spam spam spam ) for example
-    if (similar_inlineText(lastMessage.text, maxSimilaritySingleLine, maxSimilarityMultiLine))
-        return warnUser(nick, responses.similarWords); // similar words
+        //check if a single word is not too long
+        if (longestWord(lastMessage.text).length > maxWordLength)
+            return warnUser(nick, responses.longWord); //long word
 
-    //check if the user did not post too many message in the last n minutes
-    if (users[nick].length > maxMessages)
-        return warnUser(nick, responses.longTermSpeed); // long term speed count
+        //check if a word is too repetitive within a text ( spam spam spam ) for example
+        if (similar_inlineText(lastMessage.text, maxSimilaritySingleLine, maxSimilarityMultiLine))
+            return warnUser(nick, responses.similarWords); // similar words
 
-    if (hasMulitpleMessages) { //spam checks that require multiple messages ( 3 )
+        //check if the user did not post too many message in the last n minutes
+        if (users[nick].length > maxMessages)
+            return warnUser(nick, responses.longTermSpeed); // long term speed count
 
-        //check if this message is similar to the third from last message
-        if (similar_text(lastMessage.text, thirdLastMessage.text) >= maxSimilarityMultiLine)
-            return warnUser(nick, responses.similarMessage); // similar messages
+        if (hasMulitpleMessages) { //spam checks that require multiple messages ( 3 )
 
-        //check the speed between the last and third from last is not too fast
-        if (lastMessage.time - thirdLastMessage.time < maxAvgtime)
-            return warnUser(nick, responses.shortTermSpeed); // Short term speed count
+            //check if this message is similar to the third from last message
+            if (similar_text(lastMessage.text, thirdLastMessage.text) >= maxSimilarityMultiLine)
+                return warnUser(nick, responses.similarMessage); // similar messages
+
+            //check the speed between the last and third from last is not too fast
+            if (lastMessage.time - thirdLastMessage.time < maxAvgtime)
+                return warnUser(nick, responses.shortTermSpeed); // Short term speed count
+        }
     }
 }
 
@@ -341,14 +361,14 @@ var scanFile = function(session, url, message) {
     downloadFile(url, filename, true,
         function() {
             try {
-                nude.scan(filename, function(res) {
+                //nude.scan(filename, function(res) {
                     var fileName = url.split("/");
                     fileName = fileName[fileName.length - 1];
                     fs.rename(filename, config.path + fileName);
-                    var message = "";
-                    if (message.toLowerCase().indexOf("nsfw") == -1 && res) {
-                        message += fileName + " flagged as possible [NSFW]\n";
-                    }
+                    var message = "Nudity scan has been temp dissables. ";
+                    //if (message.toLowerCase().indexOf("nsfw") == -1 && res) {
+                        //message += fileName + " flagged as possible [NSFW]\n";
+                    //}
                     session.sendMessage(message + "Alternative link: " + config.domain + fileName + " available for 1 hour.");
                     setTimeout(function() {
                         try {
@@ -357,7 +377,7 @@ var scanFile = function(session, url, message) {
                             console.log(e + " error");
                         }
                     }, 1 * 60 * 60 * 1000); //remove file after 1 hour
-                });
+                //});
             } catch (e) {
                 console.log(e + "\nYour server might be out of memory (RAM)");
             }
@@ -436,6 +456,11 @@ parseCommand = function(session, nick, message, isMod) {
         case "source":
             session.sendMessage(config.botName + " is written by ToastyStoemp, the source code  can be found here: https://github.com/ToastyStoemp/modBot ");
             return;
+
+        case "afk":
+            if (afk.indexOf(nick.split('#')[0]) == -1)
+              afk.push(nick.split('#')[0]);
+            break;
     }
 
     //Moderator commands
