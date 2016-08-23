@@ -176,6 +176,8 @@ function getName(nick) {
 
 //Join a channel
 function join(channel) {
+    if (channel[0] == '?')
+      channel = channel.substr(1, channel.length);
     if (!connections[channel]) {
         connections[channel] = chat.join(channel, config.botName, config.botPass);
         console.log("joined " + channel);
