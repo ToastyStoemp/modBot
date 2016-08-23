@@ -381,7 +381,7 @@ var scanFile = function(session, url, message) {
                     var fileName = url.split("/");
                     fileName = fileName[fileName.length - 1];
                     fs.rename(filename, config.path + fileName);
-                    var message = "Nudity scan has been temp dissables. ";
+                    var message = "Nudity scan has been temp dissabled. ";
                     //if (message.toLowerCase().indexOf("nsfw") == -1 && res) {
                         //message += fileName + " flagged as possible [NSFW]\n";
                     //}
@@ -470,7 +470,7 @@ parseCommand = function(session, nick, message, isMod) {
 
             //Show the source of the bot
         case "source":
-            session.sendMessage(config.botName + " is written by ToastyStoemp, the source code  can be found here: https://github.com/ToastyStoemp/modBot ");
+            session.sendMessage(config.botName + " is written by ToastyStoemp, the source code can be found here: https://github.com/ToastyStoemp/modBot ");
             return;
 
         case "afk":
