@@ -326,7 +326,7 @@ function longestWord(text) {
 
 //returns the amount of characters a text is in length
 function charCount(text) {
-    return text.length();
+    return text.length;
 }
 
 //Controll links
@@ -424,9 +424,9 @@ var previewSite = function(session, uri, name, domain) {
     render(uri, config.previewSettings)
         .on('error', function() {
             if (domain)
-                session.sendMessage("Target domain is: " + domain + "\nPrieview could not be generated");
+                session.sendMessage("Target domain is: " + domain + "\nPreview could not be generated");
             else
-                session.sendMessage("Prieview could not be generated");
+                session.sendMessage("Preview could not be generated");
         })
         .pipe(fs.createWriteStream(config.path + name + '.jpg'))
         .on('close', function() {
