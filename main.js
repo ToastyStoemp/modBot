@@ -1,12 +1,11 @@
 var fs = require('fs');
 var http = require('http');
 var request = require('request');
-var nude = require('nude');
-var imageExists = require('image-exists');
-var uu = require('url-unshort');
-var phantom = require('phantom-render-stream');
-var render = phantom();
-var unshort = new uu();
+// var nude = require('nude');
+// var uu = require('url-unshort');
+// var phantom = require('phantom-render-stream');
+// var render = phantom();
+// var unshort = new uu();
 var HackChat = require("./hackchat.js");
 var chat = new HackChat();
 
@@ -47,8 +46,9 @@ setInterval(function() {
 //---------
 
 chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
-    if (nick != config.botName) {
-        //Check if he needs to send a direct reply
+    if (nick != config.botName && config.nickIgnore.indexOf(nick) == -1) {
+        nick += " "
+            //Check if he needs to send a direct reply
         if (text.toLowerCase().indexOf(config.botName.toLowerCase()) != -1) {
             for (var type in directResponses)
                 if (text.indexOf(type) != -1)
@@ -65,7 +65,7 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
             logMesage(nick, text, time);
 
             var outPutMessage = '';
-            outPutMessage += linkCheck(session, text, nick) || '';
+            //outPutMessage += linkCheck(session, text, nick) || '';
             outPutMessage += textCheck(nick) || '';
             if (outPutMessage !== '')
                 session.sendMessage(outPutMessage);
@@ -73,7 +73,7 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
 
         //parse commands
         if (text[0] == config.commandPrefix) {
-            parseCommand(session, nick, text, config.mods.indexOf(trip) != -1);
+            parseCommand(session, nick, text, config.mods.indexOf(trip) != -1, isAdmin);
         }
     }
 });
@@ -156,6 +156,7 @@ function getName(nick) {
 
 //Join a channel
 function join(channel) {
+    channel = channel[0] == '?' ? channel.substring(1) : channel;
     if (!connections[channel]) {
         connections[channel] = chat.join(channel, config.botName, config.botPass);
         console.log("joined " + channel);
@@ -187,7 +188,7 @@ function reload() {
 //controll text
 function textCheck(nick) {
     //could be that link check already passed a warning
-    if (users[nick])
+    if (!users[nick])
         return;
 
     //Spam Region
@@ -201,7 +202,8 @@ function textCheck(nick) {
     var hasMulitpleMessages = users[nick].length > 2;
 
     var lastMessage = users[nick][users[nick].length - 1]; //last message send
-    var thirdLastMessage = hasMulitpleMessages ? thirdLastMessage = users[nick][users[nick].length - 3] : ""; //third from last message send
+    var secondlastMessage = hasMulitpleMessages ? users[nick][users[nick].length - 2] : ""; //second from last message send 
+    var thirdLastMessage = hasMulitpleMessages ? users[nick][users[nick].length - 3] : ""; //third from last message send
 
     //checks if a series of words is not longer then maxLinecount thresh hold
     if (lastMessage.text.split(/\r\n|\r|\n/).length > maxLinecount)
@@ -222,12 +224,15 @@ function textCheck(nick) {
     if (hasMulitpleMessages) { //spam checks that require multiple messages ( 3 )
 
         //check if this message is similar to the third from last message
-        if (similar_text(lastMessage.text, thirdLastMessage.text) >= maxSimilarityMultiLine)
+        if ((similar_text(lastMessage.text, secondlastMessage.text) + similar_text(lastMessage.text, thirdLastMessage.text)) / 2 >= maxSimilarityMultiLine)
             return warnUser(nick, responses.similarMessage); // similar messages
 
         //check the speed between the last and third from last is not too fast
         if (lastMessage.time - thirdLastMessage.time < maxAvgtime)
             return warnUser(nick, responses.shortTermSpeed); // Short term speed count
+
+        if (shortMessages(lastMessage.text, secondlastMessage.text, thirdLastMessage) && lastMessage.time - thirdLastMessage.time < maxAvgtime * 5)
+            return warnUser(nick, responses.shortTermSpeedSpam); // Short term speed count
     }
 }
 
@@ -261,6 +266,11 @@ function similar_text(first, second) {
     return similarityCounter / ((first.length + second.length) / 2.0);
 }
 
+//Check if all messages are too short
+function shortMessages(first, second, third) {
+    return (first.length <= 3 && second.length <= 3 && third.length <= 3)
+}
+
 //checks for repeating words within a text
 function similar_inlineText(text, maxWordOccurence, maxSimilarity) {
     var checkedWords = [];
@@ -268,15 +278,17 @@ function similar_inlineText(text, maxWordOccurence, maxSimilarity) {
     if (textArr.length < 7)
         return false;
     for (var i = 0; i < textArr.length - 1; i++) {
-        var wordCount = 1;
-        if (checkedWords.indexOf(textArr[i]) == -1) {
-            for (var k = i + 1; k < textArr.length; k++)
-                if (textArr[i] == textArr[k] || similar_text(textArr[i], textArr[k]) > maxSimilarity)
-                    wordCount++;
-            if (wordCount / textArr.length >= maxWordOccurence)
-                return true;
+        if (textArr[i] != "") {
+            var wordCount = 1;
+            if (checkedWords.indexOf(textArr[i]) == -1) {
+                for (var k = i + 1; k < textArr.length; k++)
+                    if (textArr[i] == textArr[k] || similar_text(textArr[i], textArr[k]) > maxSimilarity)
+                        wordCount++;
+                if (wordCount / textArr.length >= maxWordOccurence)
+                    return true;
+            }
+            checkedWords.push(textArr[i]);
         }
-        checkedWords.push(textArr[i]);
     }
     return false;
 }
@@ -285,11 +297,9 @@ function similar_inlineText(text, maxWordOccurence, maxSimilarity) {
 function longestWord(text) {
     var textArr = text.split(' ');
     var longest = textArr[0];
-    for (var word of textArr) {
-        if (word.length > longest.length) {
+    for (var word of textArr)
+        if (word != "" && word.length > longest.length)
             longest = word;
-        }
-    }
     return longest;
 };
 
@@ -417,33 +427,34 @@ function loadFile(name) {
 //commands
 //---------
 
-parseCommand = function(session, nick, message, isMod) {
+parseCommand = function(session, nick, message, isMod, isAdmin) {
     var args = message.split(" ");
-    var command = String(args.splice(0, 1));
+    var command = String(args.splice(0, 1)).toLowerCase();
     command = command.substr(1, command.length);
 
     //normal commands
     switch (command) {
         //list stats for the current user
         case "stats":
-            if (!isMod || !args) {
+            if (!isMod || !args || !isAdmin) {
                 session.sendMessage("@" + nick + " ~ banCount: " + userStats[nick].banCount + " warningCount: " + userStats[nick].warningCount + "\n");
                 return;
             }
-            break;
+            return;
 
             //Show the source of the bot
         case "source":
             session.sendMessage(config.botName + " is written by ToastyStoemp, the source code  can be found here: https://github.com/ToastyStoemp/modBot ");
             return;
+
     }
 
     //Moderator commands
-    if (isMod) {
+    if (isMod || isAdmin) {
         switch (command) {
 
             //lists all the stats for all users
-            case "allStats":
+            case "allstats":
                 var newMessage = "";
                 for (var name in userStats)
                     if (userStats[name].banCount !== 0 || userStats[name].warningCount !== 0)
@@ -456,17 +467,38 @@ parseCommand = function(session, nick, message, isMod) {
                 fs.writeFile("./userStats.json", JSON.stringify(userStats), function() {});
                 return;
 
+            case "ignore":
+                if (args[0] != "" && args[1] != "") {
+                    if (args[0] == "trip") {
+                        if (config.ignore.indexOf(args[1]) == -1) {
+                            config.ignore.push(args[1]);
+                            session.sendMessage(args[1] + " has been added to the trip ignore list.");
+                            return fs.writeFile("./config.json", JSON.stringify(config), function() {});
+                        }
+                    } else if (args[0] == "nick") {
+                        if (config.nickIgnore.indexOf(args[1]) == -1) {
+                            config.nickIgnore.push(args[1]);
+                            session.sendMessage(args[1] + " has been added to the nick ignore list.");
+                            return fs.writeFile("./config.json", JSON.stringify(config), function() {});
+                        }
+                    }
+                }
+                return session.sendMessage("Usage: .ignore ['trip/nick'] [trip/nick]");
+
                 //bans a user
             case "ban":
-                var target = text.split(" ")[1];
-                if (target[0] == '@')
-                    target = target.substr(1, target.length);
-                if (config.banIgnore.indexOf(target) != -1)
-                    return;
-                session.sendRaw({
-                    cmd: "ban",
-                    nick: text.split(" ")[1]
-                });
+                if (args[0] != "") {
+                    var target = args[0];
+                    if (target[0] == '@')
+                        target = target.substr(1, target.length);
+                    if (config.banIgnore.indexOf(target) != -1)
+                        return;
+                    session.sendRaw({
+                        cmd: "ban",
+                        nick: target
+                    });
+                }
+
                 return;
 
                 //reloads some entities (check the reload function in main.js)
@@ -476,10 +508,9 @@ parseCommand = function(session, nick, message, isMod) {
 
                 //joins a specific channel
             case "join":
-                if (args) {
-                    join(args[0]);
-                    return;
-                }
+                if (args[0] != "" && args[0] != "?")
+                    return join(args[0]);
+                return session.sendMessage("Usage: .join [channel]");
                 //connections[args[1]] = chat.join(text.split(" ")[1], config.botName, config.botPass);
 
                 //leave specific channel
