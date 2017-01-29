@@ -1,16 +1,19 @@
 /// <reference path="typings/node/node.d.ts" />
 /// <reference path="typings/ws/ws.d.ts" />
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-var __extends = (this && this.__extends) || function (d, b) {
-    for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
+var __extends = (this && this.__extends) || function(d, b) {
+    for (var p in b)
+        if (b.hasOwnProperty(p)) d[p] = b[p];
+
     function __() { this.constructor = d; }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
 var WebSocket = require("ws");
 var events = require('events');
 var inviteRegex = / invited you to \?[a-z0-9]{8}$/;
-var HackChatSession = (function (_super) {
+var HackChatSession = (function(_super) {
     __extends(HackChatSession, _super);
+
     function HackChatSession(channel, username, password, options) {
         if (options === void 0) { options = { server: "wss://hack.chat/chat-ws" }; }
         _super.call(this);
@@ -19,7 +22,7 @@ var HackChatSession = (function (_super) {
             username += "#" + password;
         this.username = username;
         this.ws = new WebSocket("wss://hack.chat/chat-ws");
-        this.ws.on("open", function () {
+        this.ws.on("open", function() {
             this.sendRaw({
                 cmd: "join",
                 channel: channel,
@@ -27,7 +30,7 @@ var HackChatSession = (function (_super) {
             });
             this.emit("joining");
         }.bind(this));
-        this.ws.on("message", function (data) {
+        this.ws.on("message", function(data) {
             try {
                 var json = JSON.parse(data);
                 switch (String(json.cmd)) {
@@ -57,105 +60,103 @@ var HackChatSession = (function (_super) {
                     case "onlineRemove":
                         return this.emit(String(json.cmd), String(json.nick), json.time || 0);
                 }
-            }
-            catch (e) {
+            } catch (e) {
                 return this.emit("error", e);
             }
         }.bind(this));
-        this.ws.on("close", function () {
+        this.ws.on("close", function() {
             this.emit("left");
         }.bind(this));
     }
-    HackChatSession.prototype.sendRaw = function (json) {
+    HackChatSession.prototype.sendRaw = function(json) {
         try {
             if (this.ws.readyState == 1) {
                 this.ws.send(JSON.stringify(json));
-            }
-            else {
+            } else {
                 this.emit("error", "Not connected.");
             }
-        }
-        catch (e) {
+        } catch (e) {
             this.emit("error", e);
         }
     };
-    HackChatSession.prototype.sendMessage = function (msg) {
+    HackChatSession.prototype.sendMessage = function(msg) {
         this.sendRaw({
             cmd: "chat",
             text: msg
         });
     };
-    HackChatSession.prototype.invite = function (user) {
+    HackChatSession.prototype.invite = function(user) {
         this.sendRaw({
             cmd: "invite",
             nick: user
         });
     };
-    HackChatSession.prototype.ping = function () {
+    HackChatSession.prototype.ping = function() {
         this.sendRaw({
             cmd: "ping"
         });
     };
-    HackChatSession.prototype.leave = function () {
+    HackChatSession.prototype.leave = function() {
         this.ws.close();
     };
     return HackChatSession;
 })(events.EventEmitter);
-var HackChat = (function (_super) {
+var HackChat = (function(_super) {
     __extends(HackChat, _super);
+
     function HackChat() {
         _super.apply(this, arguments);
         this.sessions = [];
     }
-    HackChat.prototype.join = function (channel, username, password, options) {
+    HackChat.prototype.join = function(channel, username, password, options) {
         if (options === void 0) { options = { server: "wss://hack.chat/chat-ws" }; }
         var session = new HackChatSession(channel, username, password, options);
-        session.on("joining", function () {
+        session.on("joining", function() {
             this.emit("joining", session);
         }.bind(this));
-        session.on("left", function () {
+        session.on("left", function() {
             this.emit("left", session);
         }.bind(this));
-        session.on("ratelimit", function (time) {
+        session.on("ratelimit", function(time) {
             this.emit("ratelimit", session, time);
         }.bind(this));
-        session.on("banned", function (time) {
+        session.on("banned", function(time) {
             this.emit("banned", session, time);
         }.bind(this));
-        session.on("nicknameInvalid", function (time) {
+        session.on("nicknameInvalid", function(time) {
             this.emit("nicknameInvalid", session, time);
         }.bind(this));
-        session.on("nicknameTaken", function (time) {
+        session.on("nicknameTaken", function(time) {
             this.emit("nicknameTaken", session, time);
         }.bind(this));
-        session.on("invited", function (nick, channel, time) {
+        session.on("invited", function(nick, channel, time) {
             this.emit("invited", session, nick, channel, time);
         }.bind(this));
-        session.on("invitation", function (nick, channel, time) {
+        session.on("invitation", function(nick, channel, time) {
             this.emit("invitation", session, nick, channel, time);
         }.bind(this));
-        session.on("chat", function (nick, text, time, isAdmin, trip) {
+        session.on("chat", function(nick, text, time, isAdmin, trip) {
             this.emit("chat", session, nick, text, time, isAdmin, trip);
         }.bind(this));
-        session.on("info", function (text, time) {
+        session.on("info", function(text, time) {
             this.emit("info", session, text, time);
         }.bind(this));
-        session.on("warn", function (text, time) {
+        session.on("warn", function(text, time) {
             this.emit("warn", session, text, time);
         }.bind(this));
-        session.on("infoRaw", function (text, time) {
+        session.on("infoRaw", function(text, time) {
             this.emit("infoRaw", session, text, time);
         }.bind(this));
-        session.on("warnRaw", function (text, time) {
+        session.on("warnRaw", function(text, time) {
             this.emit("warnRaw", session, text, time);
         }.bind(this));
-        session.on("onlineSet", function (nicks, time) {
+        session.on("onlineSet", function(nicks, time) {
             this.emit("onlineSet", session, nicks, time);
         }.bind(this));
-        session.on("onlineAdd", function (nick, time) {
+        session.on("onlineAdd", function(nick, time) {
             this.emit("onlineAdd", session, nick, time);
         }.bind(this));
-        session.on("onlineRemove", function (nick, time) {
+        session.on("onlineRemove", function(nick, time) {
             this.emit("onlineRemove", session, nick, time);
         }.bind(this));
         this.sessions.push(session);
