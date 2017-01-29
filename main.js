@@ -1,11 +1,19 @@
 var fs = require('fs');
 var http = require('http');
 var request = require('request');
+<<<<<<< HEAD
 // var nude = require('nude');
 // var uu = require('url-unshort');
 // var phantom = require('phantom-render-stream');
 // var render = phantom();
 // var unshort = new uu();
+=======
+var nude = require('nude');
+var uu = require('url-unshort');
+var phantom = require('phantom-render-stream');
+var render = phantom();
+var unshort = new uu();
+>>>>>>> 671bc7ded8139768e36e436a94eb614fc59e94b8
 var HackChat = require("./hackchat.js");
 var chat = new HackChat();
 
@@ -20,7 +28,8 @@ reload();
 var users = {};
 var links = [];
 var connections = {};
-var that = this;
+var afk = [];
+
 
 //----------
 //initialze
@@ -46,6 +55,7 @@ setInterval(function() {
 //---------
 
 chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
+<<<<<<< HEAD
     if (nick != config.botName && config.nickIgnore.indexOf(nick) == -1) {
         nick += " "
             //Check if he needs to send a direct reply
@@ -54,6 +64,13 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
                 if (text.indexOf(type) != -1)
                     session.sendMessage('@' + nick + " " + directResponses[type]);
         }
+=======
+    if (nick != config.botName) {
+
+        //removes the user from the afk list
+        if (afk.indexOf(nick) != -1)
+        afk.splice(afk.indexOf(nick), 1);
+>>>>>>> 671bc7ded8139768e36e436a94eb614fc59e94b8
 
         //merges the nick and trip name
         if (trip !== 'undefined')
@@ -67,13 +84,34 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
             var outPutMessage = '';
             //outPutMessage += linkCheck(session, text, nick) || '';
             outPutMessage += textCheck(nick) || '';
-            if (outPutMessage !== '')
+            if (outPutMessage !== ''){
                 session.sendMessage(outPutMessage);
+                return;
+            }
         }
 
         //parse commands
         if (text[0] == config.commandPrefix) {
+<<<<<<< HEAD
             parseCommand(session, nick, text, config.mods.indexOf(trip) != -1, isAdmin);
+=======
+            parseCommand(session, nick, text, config.mods.indexOf(trip) != -1);
+        } else {
+          //Check if he needs to send a direct reply
+          if (text.toLowerCase().indexOf(config.botName.toLowerCase()) != -1) {
+              for (var type in directResponses)
+                  if (text.indexOf(type) != -1)
+                      session.sendMessage('@' + nick + " " + directResponses[type]);
+          }
+
+          //check if an AFK person was mentioned
+          var atIndex = text.indexOf('@');
+          if (atIndex != -1) {
+            var targetNick = text.substr(atIndex + 1, text.indexOf(' ', atIndex) - 1);
+            if (afk.indexOf(targetNick) != -1)
+              session.sendMessage('@' + nick.split('#')[0] + ' ' + targetNick + ' is afk.');
+          }
+>>>>>>> 671bc7ded8139768e36e436a94eb614fc59e94b8
         }
     }
 });
@@ -98,6 +136,11 @@ chat.on("nicknameTaken", function() {
 chat.on("ratelimit", function() {
     console.log("Rate limit");
 });
+
+chat.on("onlineRemove", function(session, nick) {
+  if (afk.indexOf(nick) != -1)
+    afk.splice(afk.indexOf(nick), 1);
+})
 
 //--------------
 //Bot Functions
@@ -156,7 +199,12 @@ function getName(nick) {
 
 //Join a channel
 function join(channel) {
+<<<<<<< HEAD
     channel = channel[0] == '?' ? channel.substring(1) : channel;
+=======
+    if (channel[0] == '?')
+      channel = channel.substr(1, channel.length);
+>>>>>>> 671bc7ded8139768e36e436a94eb614fc59e94b8
     if (!connections[channel]) {
         connections[channel] = chat.join(channel, config.botName, config.botPass);
         console.log("joined " + channel);
@@ -187,8 +235,13 @@ function reload() {
 
 //controll text
 function textCheck(nick) {
+
     //could be that link check already passed a warning
+<<<<<<< HEAD
     if (!users[nick])
+=======
+    if (!(users[nick]))
+>>>>>>> 671bc7ded8139768e36e436a94eb614fc59e94b8
         return;
 
     //Spam Region
@@ -198,6 +251,7 @@ function textCheck(nick) {
     var maxSimilaritySingleLine = 0.70; //Max similarity between the words in the text
     var maxLinecount = 8; //amount of lines a message can be max
     var maxWordLength = 200;
+    var maxCharCount = 1500;
 
     var hasMulitpleMessages = users[nick].length > 2;
 
@@ -205,24 +259,29 @@ function textCheck(nick) {
     var secondlastMessage = hasMulitpleMessages ? users[nick][users[nick].length - 2] : ""; //second from last message send 
     var thirdLastMessage = hasMulitpleMessages ? users[nick][users[nick].length - 3] : ""; //third from last message send
 
-    //checks if a series of words is not longer then maxLinecount thresh hold
-    if (lastMessage.text.split(/\r\n|\r|\n/).length > maxLinecount)
-        return warnUser(nick, responses.longText); //long text
+    if (lastMessage) {
 
-    //check if a single word is not too long
-    if (longestWord(lastMessage.text).length > maxWordLength)
-        return warnUser(nick, responses.longWord); //long word
+        //checks if a series of words is not longer then maxLinecount thresh hold
+        if (lastMessage.text.split(/\r\n|\r|\n/).length > maxLinecount)
+            return warnUser(nick, responses.longText); //long text
 
-    //check if a word is too repetitive within a text ( spam spam spam ) for example
-    if (similar_inlineText(lastMessage.text, maxSimilaritySingleLine, maxSimilarityMultiLine))
-        return warnUser(nick, responses.similarWords); // similar words
+        //checks if there are not too many characters in a text
+        if (charCount(lastMessage.text) > maxCharCount)
+            return warnUser(nick, responses.longText); //long text 2
 
-    //check if the user did not post too many message in the last n minutes
-    if (users[nick].length > maxMessages)
-        return warnUser(nick, responses.longTermSpeed); // long term speed count
+        //check if a single word is not too long
+        if (longestWord(lastMessage.text).length > maxWordLength)
+            return warnUser(nick, responses.longWord); //long word
 
-    if (hasMulitpleMessages) { //spam checks that require multiple messages ( 3 )
+        //check if a word is too repetitive within a text ( spam spam spam ) for example
+        if (similar_inlineText(lastMessage.text, maxSimilaritySingleLine, maxSimilarityMultiLine))
+            return warnUser(nick, responses.similarWords); // similar words
 
+        //check if the user did not post too many message in the last n minutes
+        if (users[nick].length > maxMessages)
+            return warnUser(nick, responses.longTermSpeed); // long term speed count
+
+<<<<<<< HEAD
         //check if this message is similar to the third from last message
         if ((similar_text(lastMessage.text, secondlastMessage.text) + similar_text(lastMessage.text, thirdLastMessage.text)) / 2 >= maxSimilarityMultiLine)
             return warnUser(nick, responses.similarMessage); // similar messages
@@ -233,6 +292,18 @@ function textCheck(nick) {
 
         if (shortMessages(lastMessage.text, secondlastMessage.text, thirdLastMessage) && lastMessage.time - thirdLastMessage.time < maxAvgtime * 5)
             return warnUser(nick, responses.shortTermSpeedSpam); // Short term speed count
+=======
+        if (hasMulitpleMessages) { //spam checks that require multiple messages ( 3 )
+
+            //check if this message is similar to the third from last message
+            if (similar_text(lastMessage.text, thirdLastMessage.text) >= maxSimilarityMultiLine)
+                return warnUser(nick, responses.similarMessage); // similar messages
+
+            //check the speed between the last and third from last is not too fast
+            if (lastMessage.time - thirdLastMessage.time < maxAvgtime)
+                return warnUser(nick, responses.shortTermSpeed); // Short term speed count
+        }
+>>>>>>> 671bc7ded8139768e36e436a94eb614fc59e94b8
     }
 }
 
@@ -303,6 +374,11 @@ function longestWord(text) {
     return longest;
 };
 
+//returns the amount of characters a text is in length
+function charCount(text) {
+    return text.length;
+}
+
 //Controll links
 function linkCheck(session, text, nick) {
     var urls = text.match(/(https?:\/\/)\S+?(?=[,.!?:)]?\s|$)/g); //returns an array with all links in the current message
@@ -351,14 +427,14 @@ var scanFile = function(session, url, message) {
     downloadFile(url, filename, true,
         function() {
             try {
-                nude.scan(filename, function(res) {
+                //nude.scan(filename, function(res) {
                     var fileName = url.split("/");
                     fileName = fileName[fileName.length - 1];
                     fs.rename(filename, config.path + fileName);
-                    var message = "";
-                    if (message.toLowerCase().indexOf("nsfw") == -1 && res) {
-                        message += fileName + " flagged as possible [NSFW]\n";
-                    }
+                    var message = "Nudity scan has been temp dissabled. ";
+                    //if (message.toLowerCase().indexOf("nsfw") == -1 && res) {
+                        //message += fileName + " flagged as possible [NSFW]\n";
+                    //}
                     session.sendMessage(message + "Alternative link: " + config.domain + fileName + " available for 1 hour.");
                     setTimeout(function() {
                         try {
@@ -367,7 +443,7 @@ var scanFile = function(session, url, message) {
                             console.log(e + " error");
                         }
                     }, 1 * 60 * 60 * 1000); //remove file after 1 hour
-                });
+                //});
             } catch (e) {
                 console.log(e + "\nYour server might be out of memory (RAM)");
             }
@@ -398,9 +474,9 @@ var previewSite = function(session, uri, name, domain) {
     render(uri, config.previewSettings)
         .on('error', function() {
             if (domain)
-                session.sendMessage("Target domain is: " + domain + "\nPrieview could not be generated");
+                session.sendMessage("Target domain is: " + domain + "\nPreview could not be generated");
             else
-                session.sendMessage("Prieview could not be generated");
+                session.sendMessage("Preview could not be generated");
         })
         .pipe(fs.createWriteStream(config.path + name + '.jpg'))
         .on('close', function() {
@@ -444,9 +520,16 @@ parseCommand = function(session, nick, message, isMod, isAdmin) {
 
             //Show the source of the bot
         case "source":
-            session.sendMessage(config.botName + " is written by ToastyStoemp, the source code  can be found here: https://github.com/ToastyStoemp/modBot ");
+            session.sendMessage(config.botName + " is written by ToastyStoemp, the source code can be found here: https://github.com/ToastyStoemp/modBot ");
             return;
 
+<<<<<<< HEAD
+=======
+        case "afk":
+            if (afk.indexOf(nick.split('#')[0]) == -1)
+              afk.push(nick.split('#')[0]);
+            break;
+>>>>>>> 671bc7ded8139768e36e436a94eb614fc59e94b8
     }
 
     //Moderator commands
@@ -487,6 +570,7 @@ parseCommand = function(session, nick, message, isMod, isAdmin) {
 
                 //bans a user
             case "ban":
+<<<<<<< HEAD
                 if (args[0] != "") {
                     var target = args[0];
                     if (target[0] == '@')
@@ -499,6 +583,17 @@ parseCommand = function(session, nick, message, isMod, isAdmin) {
                     });
                 }
 
+=======
+                var target = message.split(" ")[1];
+                if (target[0] == '@')
+                    target = target.substr(1, target.length);
+                if (config.banIgnore.indexOf(target) != -1)
+                    return;
+                session.sendRaw({
+                    cmd: "ban",
+                    nick: message.split(" ")[1]
+                });
+>>>>>>> 671bc7ded8139768e36e436a94eb614fc59e94b8
                 return;
 
                 //reloads some entities (check the reload function in main.js)
