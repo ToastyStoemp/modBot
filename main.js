@@ -1,19 +1,12 @@
 var fs = require('fs');
 var http = require('http');
 var request = require('request');
-<<<<<<< HEAD
 // var nude = require('nude');
 // var uu = require('url-unshort');
 // var phantom = require('phantom-render-stream');
 // var render = phantom();
 // var unshort = new uu();
-=======
-var nude = require('nude');
-var uu = require('url-unshort');
-var phantom = require('phantom-render-stream');
-var render = phantom();
-var unshort = new uu();
->>>>>>> 671bc7ded8139768e36e436a94eb614fc59e94b8
+
 var HackChat = require("./hackchat.js");
 var chat = new HackChat();
 
@@ -55,7 +48,6 @@ setInterval(function() {
 //---------
 
 chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
-<<<<<<< HEAD
     if (nick != config.botName && config.nickIgnore.indexOf(nick) == -1) {
         nick += " "
             //Check if he needs to send a direct reply
@@ -64,13 +56,10 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
                 if (text.indexOf(type) != -1)
                     session.sendMessage('@' + nick + " " + directResponses[type]);
         }
-=======
-    if (nick != config.botName) {
 
         //removes the user from the afk list
         if (afk.indexOf(nick) != -1)
         afk.splice(afk.indexOf(nick), 1);
->>>>>>> 671bc7ded8139768e36e436a94eb614fc59e94b8
 
         //merges the nick and trip name
         if (trip !== 'undefined')
@@ -92,10 +81,7 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
 
         //parse commands
         if (text[0] == config.commandPrefix) {
-<<<<<<< HEAD
             parseCommand(session, nick, text, config.mods.indexOf(trip) != -1, isAdmin);
-=======
-            parseCommand(session, nick, text, config.mods.indexOf(trip) != -1);
         } else {
           //Check if he needs to send a direct reply
           if (text.toLowerCase().indexOf(config.botName.toLowerCase()) != -1) {
@@ -111,7 +97,6 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
             if (afk.indexOf(targetNick) != -1)
               session.sendMessage('@' + nick.split('#')[0] + ' ' + targetNick + ' is afk.');
           }
->>>>>>> 671bc7ded8139768e36e436a94eb614fc59e94b8
         }
     }
 });
@@ -199,12 +184,8 @@ function getName(nick) {
 
 //Join a channel
 function join(channel) {
-<<<<<<< HEAD
-    channel = channel[0] == '?' ? channel.substring(1) : channel;
-=======
     if (channel[0] == '?')
       channel = channel.substr(1, channel.length);
->>>>>>> 671bc7ded8139768e36e436a94eb614fc59e94b8
     if (!connections[channel]) {
         connections[channel] = chat.join(channel, config.botName, config.botPass);
         console.log("joined " + channel);
@@ -237,11 +218,7 @@ function reload() {
 function textCheck(nick) {
 
     //could be that link check already passed a warning
-<<<<<<< HEAD
     if (!users[nick])
-=======
-    if (!(users[nick]))
->>>>>>> 671bc7ded8139768e36e436a94eb614fc59e94b8
         return;
 
     //Spam Region
@@ -280,8 +257,7 @@ function textCheck(nick) {
         //check if the user did not post too many message in the last n minutes
         if (users[nick].length > maxMessages)
             return warnUser(nick, responses.longTermSpeed); // long term speed count
-
-<<<<<<< HEAD
+        
         //check if this message is similar to the third from last message
         if ((similar_text(lastMessage.text, secondlastMessage.text) + similar_text(lastMessage.text, thirdLastMessage.text)) / 2 >= maxSimilarityMultiLine)
             return warnUser(nick, responses.similarMessage); // similar messages
@@ -292,18 +268,6 @@ function textCheck(nick) {
 
         if (shortMessages(lastMessage.text, secondlastMessage.text, thirdLastMessage) && lastMessage.time - thirdLastMessage.time < maxAvgtime * 5)
             return warnUser(nick, responses.shortTermSpeedSpam); // Short term speed count
-=======
-        if (hasMulitpleMessages) { //spam checks that require multiple messages ( 3 )
-
-            //check if this message is similar to the third from last message
-            if (similar_text(lastMessage.text, thirdLastMessage.text) >= maxSimilarityMultiLine)
-                return warnUser(nick, responses.similarMessage); // similar messages
-
-            //check the speed between the last and third from last is not too fast
-            if (lastMessage.time - thirdLastMessage.time < maxAvgtime)
-                return warnUser(nick, responses.shortTermSpeed); // Short term speed count
-        }
->>>>>>> 671bc7ded8139768e36e436a94eb614fc59e94b8
     }
 }
 
@@ -522,14 +486,11 @@ parseCommand = function(session, nick, message, isMod, isAdmin) {
         case "source":
             session.sendMessage(config.botName + " is written by ToastyStoemp, the source code can be found here: https://github.com/ToastyStoemp/modBot ");
             return;
-
-<<<<<<< HEAD
-=======
+            
         case "afk":
             if (afk.indexOf(nick.split('#')[0]) == -1)
               afk.push(nick.split('#')[0]);
             break;
->>>>>>> 671bc7ded8139768e36e436a94eb614fc59e94b8
     }
 
     //Moderator commands
@@ -570,7 +531,6 @@ parseCommand = function(session, nick, message, isMod, isAdmin) {
 
                 //bans a user
             case "ban":
-<<<<<<< HEAD
                 if (args[0] != "") {
                     var target = args[0];
                     if (target[0] == '@')
@@ -582,18 +542,6 @@ parseCommand = function(session, nick, message, isMod, isAdmin) {
                         nick: target
                     });
                 }
-
-=======
-                var target = message.split(" ")[1];
-                if (target[0] == '@')
-                    target = target.substr(1, target.length);
-                if (config.banIgnore.indexOf(target) != -1)
-                    return;
-                session.sendRaw({
-                    cmd: "ban",
-                    nick: message.split(" ")[1]
-                });
->>>>>>> 671bc7ded8139768e36e436a94eb614fc59e94b8
                 return;
 
                 //reloads some entities (check the reload function in main.js)
