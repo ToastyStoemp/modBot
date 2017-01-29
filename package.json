@@ -8,6 +8,7 @@
     "image-exists": "^1.1.0",
     "image-type": "^2.1.0",
     "mmmagic": "^0.4.1",
+    "nan": "^2.4.0",
     "nude": "0.0.1",
     "nude-cli": "0.0.7",
     "phantom-render-stream": "^2.1.0",
