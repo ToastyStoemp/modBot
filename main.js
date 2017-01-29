@@ -1,7 +1,6 @@
 var fs = require('fs');
 var http = require('http');
 var request = require('request');
-var nude = require('nude');
 var uu = require('url-unshort');
 var phantom = require('phantom-render-stream');
 var render = phantom();
@@ -21,7 +20,7 @@ var users = {};
 var links = [];
 var connections = {};
 var afk = [];
-
+var chaton = [];
 
 //----------
 //initialze
@@ -73,7 +72,7 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
 
         //parse commands
         if (text[0] == config.commandPrefix) {
-            parseCommand(session, nick, text, config.mods.indexOf(trip) != -1);
+            parseCommand(session, nick, text, isAdmin || config.mods.indexOf(trip) != -1);
         } else {
           //Check if he needs to send a direct reply
           if (text.toLowerCase().indexOf(config.botName.toLowerCase()) != -1) {
@@ -91,6 +90,29 @@ chat.on("chat", function(session, nick, text, time, isAdmin, trip) {
           }
         }
     }
+});
+
+chat.on('onlineSet', function(session, users) {
+    for (var i = 0; i < users.length; i++) {
+        if (userStats[users[i]] && userStats[users[i]].autoBan === true) {
+            session.sendRaw({
+                cmd: 'ban',
+                nick: users[i]
+            });
+            userStats[users[i]].banCount++;
+        }
+        for(var j = 0; j < userStats["autoBanTargets#botReserved"].length; j++)
+        {
+            if(users[i].indexOf(userStats["autoBanTargets#botReserved"][j]) != -1)
+            {
+                session.sendRaw({
+                    cmd: 'ban',
+                    nick: users[i]
+                });
+            }
+        }
+    }
+    chaton = users;
 });
 
 chat.on("joining", function(session) {
@@ -115,9 +137,31 @@ chat.on("ratelimit", function() {
 });
 
 chat.on("onlineRemove", function(session, nick) {
-  if (afk.indexOf(nick) != -1)
-    afk.splice(afk.indexOf(nick), 1);
+    if (afk.indexOf(nick) != -1)
+        afk.splice(afk.indexOf(nick), 1);
+    chaton.splice(chaton.indexOf(nick), 1);
 })
+
+chat.on('onlineAdd', function(session, nick) {
+    chaton.push(nick);
+    for (var i = 0; i < userStats["autoBanTargets#botReserved"].length; i++)
+    {
+        if(nick.toLowerCase().indexOf(userStats["autoBanTargets#botReserved"][i].toLowerCase()) != -1)
+        {
+            session.sendRaw({
+                cmd: "ban",
+                nick: nick
+            });
+        }
+    }
+    if (userStats[nick] && userStats[nick].autoBan === true) {
+        session.sendRaw({
+            cmd: 'ban',
+            nick: nick
+        });
+        userStats[nick].banCount++;
+    }
+});
 
 //--------------
 //Bot Functions
@@ -446,7 +490,7 @@ var previewSite = function(session, uri, name, domain) {
 
 //Async file loader
 function loadFile(name) {
-    return JSON.parse(fs.readFileSync(name).toString());
+    return JSON.parse(fs.readFileSync(name, {encoding: 'utf8'}));
 }
 
 //---------
@@ -527,6 +571,47 @@ parseCommand = function(session, nick, message, isMod) {
             case "leave":
                 leave(session);
                 return;
+            case "autoban":
+                if(!args)
+                    return;
+                var target = message.split(" ")[1];
+                if (target[0] == '@')
+                    target = target.substr(1, target.length);
+                if (config.banIgnore.indexOf(target) != -1)
+                    return;
+                session.sendRaw({
+                    cmd: 'ban',
+                    nick: message.split(" ")[1]
+                });
+                if (userStats[target])
+                    userStats[target].autoBan = true;
+                else
+                    userStats[target] = {
+                        banCount: 1,
+                        warningCount: 0,
+                        autoBan: true
+                    };
+                return;
+            case "nickautoban":
+                if(!args)
+                    return;
+                var target = message.split(" ")[1];
+                if (target[0] == '@')
+                    target = target.substr(1, target.length);
+                if (config.banIgnore.indexOf(target) != -1)
+                    return;
+                userStats["autoBanTargets#botReserved"].push(target);
+                fs.writeFile("./userStats.json", JSON.stringify(userStats), function() {});
+                for(var i = 0; i < chaton.length; i++)
+                {
+                    if(chaton[i].toLowerCase().indexOf(target.toLowerCase()) != -1)
+                    {
+                        session.sendRaw({
+                            cmd: 'ban',
+                            nick: chaton[i]
+                        });
+                    }
+                }
         }
     }
 }

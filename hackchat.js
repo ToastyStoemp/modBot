@@ -6,19 +6,20 @@ var __extends = (this && this.__extends) || function (d, b) {
     function __() { this.constructor = d; }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
+var chatWsLink = "wss://hack.chat/chat-ws";
 var WebSocket = require("ws");
 var events = require('events');
 var inviteRegex = / invited you to \?[a-z0-9]{8}$/;
 var HackChatSession = (function (_super) {
     __extends(HackChatSession, _super);
     function HackChatSession(channel, username, password, options) {
-        if (options === void 0) { options = { server: "wss://hack.chat/chat-ws" }; }
+        if (options === void 0) { options = { server: chatWsLink }; }
         _super.call(this);
         this.channel = channel;
         if (password !== undefined)
             username += "#" + password;
         this.username = username;
-        this.ws = new WebSocket("wss://hack.chat/chat-ws");
+        this.ws = new WebSocket(chatWsLink);
         this.ws.on("open", function () {
             this.sendRaw({
                 cmd: "join",
@@ -30,6 +31,8 @@ var HackChatSession = (function (_super) {
         this.ws.on("message", function (data) {
             try {
                 var json = JSON.parse(data);
+                if (["valueof", "hasownproperty", 'tostring'].indexOf(String(json.nick).toLowerCase()) != -1)
+                    return;
                 switch (String(json.cmd)) {
                     case "chat":
                         return this.emit("chat", String(json.nick), String(json.text), json.time || 0, !!json.admin, String(json.trip));
@@ -108,7 +111,7 @@ var HackChat = (function (_super) {
         this.sessions = [];
     }
     HackChat.prototype.join = function (channel, username, password, options) {
-        if (options === void 0) { options = { server: "wss://hack.chat/chat-ws" }; }
+        if (options === void 0) { options = { server: chatWsLink }; }
         var session = new HackChatSession(channel, username, password, options);
         session.on("joining", function () {
             this.emit("joining", session);
